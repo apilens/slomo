@@ -44,7 +44,7 @@ class Config:
 
 
 DEFAULT_CONFIG_TOML = """\
-# slomo configuration — https://github.com/bhatt-neel-dev/slomo
+# slomo configuration — https://github.com/apilens/slomo
 [recording]
 enabled = true
 max_value_repr = 2048

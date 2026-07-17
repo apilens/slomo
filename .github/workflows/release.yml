@@ -7,7 +7,7 @@
 #
 # Secrets:
 #   PYPI_API_TOKEN           PyPI token used by the publish step
-#   HOMEBREW_TAP_DEPLOY_KEY  write deploy key for bhatt-neel-dev/homebrew-slomo
+#   HOMEBREW_TAP_DEPLOY_KEY  write deploy key for apilens/homebrew-slomo
 #
 # Note: the Homebrew step bumps only slomo's own url/sha256. If dependency
 # pins change (typer/rich/...), regenerate the formula's resource blocks
@@ -97,7 +97,7 @@ jobs:
           EOF
       - uses: actions/checkout@v4
         with:
-          repository: bhatt-neel-dev/homebrew-slomo
+          repository: apilens/homebrew-slomo
           ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
       - name: Bump formula
         run: |

@@ -33,7 +33,7 @@ Call `enable()` at import time of your app module (before the routes run). With 
 A 500 in the `checkout` route lands in `slomo issues` like any crash: fingerprinted, classified, with the route function's args (`sku`), its locals, and any database or HTTP activity from the request.
 
 <Tip>
-The repository's [`examples/fastapi_app.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/fastapi_app.py) is a complete runnable app showing lifespan integration, tracked async routes, per-request middleware events, and background-task failures.
+The repository's [`examples/fastapi_app.py`](https://github.com/apilens/slomo/blob/main/examples/fastapi_app.py) is a complete runnable app showing lifespan integration, tracked async routes, per-request middleware events, and background-task failures.
 </Tip>
 
 ## Flask
@@ -50,7 +50,7 @@ def checkout(sku):
     ...
 ```
 
-Same story: view functions are project code, so they're auto-traced; escaping exceptions are recorded before Flask converts them to error responses. See [`examples/flask_app.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/flask_app.py).
+Same story: view functions are project code, so they're auto-traced; escaping exceptions are recorded before Flask converts them to error responses. See [`examples/flask_app.py`](https://github.com/apilens/slomo/blob/main/examples/flask_app.py).
 
 ## Per-request context
 

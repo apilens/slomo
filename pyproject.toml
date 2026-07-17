@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/bhatt-neel-dev/slomo"
+Homepage = "https://github.com/apilens/slomo"
 
 [project.optional-dependencies]
 dev = [

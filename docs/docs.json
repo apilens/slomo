@@ -95,7 +95,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/bhatt-neel-dev/slomo"
+        "href": "https://github.com/apilens/slomo"
       }
     ],
     "primary": {
@@ -106,7 +106,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/bhatt-neel-dev/slomo"
+      "github": "https://github.com/apilens/slomo"
     }
   }
 }
