@@ -92,6 +92,7 @@ class TestSubprocess:
                     for i in range(100_000):
                         slomo.event("tick", i=i)
                         if i == 5000:
+                            slomo.flush()  # first 5001 ticks guaranteed on disk
                             print("ready", flush=True)
                     time.sleep(30)
                     """
@@ -111,7 +112,9 @@ class TestSubprocess:
         assert sessions[0].status == "abandoned"  # pid dead, never finalized
         events = list(backend.iter_events(sessions[0].id))  # must not raise
         ticks = [e for e in events if e.payload.get("name") == "tick"]
-        assert len(ticks) > 100  # buffered batches made it to disk pre-kill
+        # everything flushed before "ready" must survive the kill; the exact
+        # tail beyond it is timing-dependent (deliberately not asserted)
+        assert len(ticks) > 5000
 
     @pytest.mark.skipif(not hasattr(os, "fork"), reason="POSIX only")
     def test_fork_gets_own_session(self, storage_root):
