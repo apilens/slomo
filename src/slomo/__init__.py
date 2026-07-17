@@ -16,7 +16,7 @@ from slomo._core.events import EventType, Severity
 from slomo._core.recorder import get_recorder
 from slomo.track import track
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __all__ = [
     "enable",
     "disable",

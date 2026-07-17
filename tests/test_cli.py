@@ -166,3 +166,19 @@ class TestInit:
     def test_rejects_missing_directory(self, tmp_path):
         result = runner.invoke(app, ["init", str(tmp_path / "nope")])
         assert result.exit_code == 1
+
+    def test_writes_runnable_demo_under_50_lines(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SLOMO_HOME", raising=False)
+        out = _invoke("init", str(tmp_path))
+        demo = tmp_path / "slomo_demo.py"
+        assert demo.is_file() and "slomo_demo.py" in out
+        source = demo.read_text()
+        assert len(source.splitlines()) <= 50
+        compile(source, str(demo), "exec")  # must be valid python
+
+    def test_never_overwrites_existing_demo(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SLOMO_HOME", raising=False)
+        demo = tmp_path / "slomo_demo.py"
+        demo.write_text("# mine\n", encoding="utf-8")
+        _invoke("init", str(tmp_path))
+        assert demo.read_text() == "# mine\n"

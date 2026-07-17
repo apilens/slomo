@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "slomo"
-version = "0.1.1"
+version = "0.1.2"
 description = "The black box flight recorder for Python applications — record, replay, and diagnose crashes from your terminal."
 readme = "README.md"
 license = "MIT"

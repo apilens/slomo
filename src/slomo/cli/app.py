@@ -126,6 +126,46 @@ def _main_callback(
 
 # ---------- init ----------
 
+_DEMO_APP = '''\
+"""slomo demo — run me a few times, then explore what got recorded:
+
+    python slomo_demo.py
+    slomo issues      # the crash below, deduplicated
+    slomo doctor      # root-cause diagnosis
+    slomo replay      # step through it, event by event
+
+Delete this file whenever you're done with it.
+"""
+
+import sqlite3
+
+import slomo
+
+slomo.enable()  # one line — everything below is recorded automatically
+
+
+def load_user(db, user_id):
+    return db.execute("SELECT id, name FROM users WHERE id = ?", (user_id,)).fetchone()
+
+
+def greeting(db, user_id):
+    user = load_user(db, user_id)
+    slomo.snapshot("before-greet", user_id=user_id, user=user)  # optional breadcrumb
+    return f"hello, {user[1]}!"  # BUG: user is None for unknown ids
+
+
+def main():
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    db.execute("INSERT INTO users VALUES (1, 'ada')")
+    print(greeting(db, 1))  # works
+    print(greeting(db, 42))  # crashes — now run: slomo issues
+
+
+if __name__ == "__main__":
+    main()
+'''
+
 
 @app.command("init")
 def init(
@@ -154,6 +194,11 @@ def init(
     already = root.is_dir()
     paths.initialize_root(root)
 
+    demo = target / "slomo_demo.py"
+    wrote_demo = not demo.exists()
+    if wrote_demo:
+        demo.write_text(_DEMO_APP, encoding="utf-8")
+
     lines = Text()
     lines.append(
         ("already initialized — left as is\n\n" if already else "initialized\n\n"),
@@ -162,7 +207,10 @@ def init(
     lines.append(f"config     {root / 'config.toml'}\n", style="dim")
     lines.append("           redaction rules, auto-trace include/exclude, retention\n", style="dim")
     lines.append("recordings self-ignored from git — nothing to add to .gitignore\n\n", style="dim")
-    lines.append("Add two lines to your app:\n\n", style="bold")
+    if wrote_demo:
+        lines.append("Try it right now — a tiny sample app with a planted bug:\n\n", style="bold")
+        lines.append(f"    python {demo.name}\n\n", style="cyan")
+    lines.append("Add two lines to your own app:\n\n", style="bold")
     lines.append("    import slomo\n    slomo.enable()\n\n", style="cyan")
     lines.append("Then run it and explore:\n\n", style="bold")
     lines.append("    slomo issues     crashes, deduplicated\n", style="cyan")
