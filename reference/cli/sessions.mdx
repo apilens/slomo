@@ -1,0 +1,189 @@
+---
+title: "slomo sessions: Listing and Inspecting Recordings"
+sidebarTitle: "sessions"
+description: "Reference for slomo sessions and slomo session subcommands. List, inspect, and delete recorded process runs. Key flags: --limit, session id prefix matching."
+---
+
+Every time your instrumented Python application runs, Slomo creates a **session** — a self-contained recording of that process execution. The `slomo sessions` and `slomo session` commands let you list those recordings, drill into the events and function calls captured during each run, and remove sessions you no longer need.
+
+<Note>
+Session IDs support prefix matching. You only need to type enough characters to uniquely identify a session. If the prefix is ambiguous, Slomo will list the matching sessions and ask you to be more specific.
+</Note>
+
+---
+
+## `slomo sessions`
+
+Lists recorded sessions, newest last. Defaults to the 25 most recent sessions.
+
+### Syntax
+
+```bash
+slomo sessions [-n N]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `-n N` | `25` | Maximum number of sessions to display |
+
+### Example output
+
+```console
+$ slomo sessions
+  ID          STARTED               DURATION   STATUS      EVENTS  ENTRY POINT
+  a1b2c3d4    2024-06-10 13:04:51   2.3s       crashed     142     app.py
+  9f8e7d6c    2024-06-10 12:55:03   18.4s      ok          893     worker.py
+  5a4b3c2d    2024-06-10 12:41:17   5.1s       ok          310     app.py
+  1e2f3a4b    2024-06-09 17:22:08   0.4s       crashed     27      app.py
+  ...
+```
+
+Each row shows:
+
+| Column | Description |
+|---|---|
+| `ID` | Short session identifier (prefix of the full ID) |
+| `STARTED` | Timestamp when the process started |
+| `DURATION` | Total elapsed time of the session |
+| `STATUS` | `ok` if the process exited cleanly; `crashed` if an unhandled exception terminated it |
+| `EVENTS` | Total number of recorded events (spans, logs, SQL queries, HTTP calls, etc.) |
+| `ENTRY POINT` | The Python file used to start the process |
+
+```console
+$ slomo sessions -n 5
+  ID          STARTED               DURATION   STATUS      EVENTS  ENTRY POINT
+  a1b2c3d4    2024-06-10 13:04:51   2.3s       crashed     142     app.py
+  9f8e7d6c    2024-06-10 12:55:03   18.4s      ok          893     worker.py
+  5a4b3c2d    2024-06-10 12:41:17   5.1s       ok          310     app.py
+  1e2f3a4b    2024-06-09 17:22:08   0.4s       crashed     27      app.py
+  cc9d1f80    2024-06-09 16:58:44   11.7s      ok          512     app.py
+```
+
+---
+
+## `slomo session show`
+
+Displays metadata and a summary for a single session: the event type breakdown and the most recent errors recorded during the run.
+
+### Syntax
+
+```bash
+slomo session show <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full session ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo session show a1b2c3d4
+
+Session   a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+Started   2024-06-10 13:04:51
+Duration  2.3s
+Status    crashed
+Events    142
+Entry     app.py
+
+Event breakdown:
+  function.call    98
+  sql.query        21
+  sql.result       21
+  http.request      1
+  log.error         1
+
+Recent errors:
+  13:04:52.180  TypeError: 'NoneType' object is not subscriptable
+                checkout() at app.py:14
+```
+
+<Tip>
+Use `slomo session show` for a quick health check on a session before deciding whether to run `slomo session inspect` for the full span tree.
+</Tip>
+
+---
+
+## `slomo session inspect`
+
+Renders the full span tree for a session — every tracked function call with its duration and an error marker on any call that raised an exception.
+
+### Syntax
+
+```bash
+slomo session inspect <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full session ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo session inspect a1b2c3d4
+
+Session a1b2c3d4  2024-06-10 13:04:51  (2.3s)
+
+  handle_request()          app.py:42      2.298s
+  ├─ authenticate()         app.py:88      0.012s
+  ├─ load_cart()            app.py:101     0.054s
+  │  └─ db_fetch()          db.py:33       0.051s
+  └─ checkout()             app.py:8       2.231s  ✗ TypeError
+     ├─ get_inventory()     app.py:55      0.087s
+     └─ apply_discount()    app.py:63      —  (not reached)
+```
+
+Functions marked with `✗` raised an exception. Functions marked `—` were registered but never entered because an earlier sibling raised before they could be called.
+
+<Note>
+Only functions decorated with `@slomo.track` (or wrapped with `slomo.track_func`) appear in the span tree. To see more granular call paths, add tracking to the functions you care about.
+</Note>
+
+---
+
+## `slomo session delete`
+
+Permanently deletes a recorded session and all its associated event data.
+
+### Syntax
+
+```bash
+slomo session delete <ID> [-y]
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full session ID or a unique prefix |
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `-y` | Skip the confirmation prompt and delete immediately |
+
+### Example output
+
+```console
+$ slomo session delete a1b2c3d4
+Delete session a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6? [y/N] y
+Deleted.
+```
+
+```console
+$ slomo session delete a1b2c3d4 -y
+Deleted.
+```
+
+<Note>
+Deletion is permanent. Slomo does not keep a recycle bin or support undo for session data. If you need to preserve a session for later review, export or archive it before deleting.
+</Note>

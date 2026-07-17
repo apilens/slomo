@@ -1,0 +1,115 @@
+---
+title: "slomo search: Full-Text Event Search with Filters"
+sidebarTitle: "search"
+description: "slomo search queries all recorded events with free-text and field=value filters. Combine keywords and filters like module=, function=, or user= to narrow results."
+---
+
+`slomo search` queries every event across all recorded sessions at once. You can search by free text, narrow results with `field=value` filters, or combine the two in a single command. It is the right tool when you know what went wrong but not which session it happened in.
+
+## Syntax
+
+```bash
+slomo search TERMS... [-n N]
+```
+
+| Argument / Flag | Description |
+|---|---|
+| `TERMS` | One or more keywords and/or `field=value` filters, space-separated |
+| `-n N` | Maximum number of results to return (default: `50`) |
+
+## Free-text search
+
+Keywords match against the full event payload — log messages, exception text, SQL queries, HTTP URLs, and variable values are all indexed. The search is case-insensitive.
+
+```bash
+# Find every event mentioning "timeout"
+slomo search timeout
+
+# Find events containing the phrase "connection refused"
+slomo search "connection refused"
+
+# Find events mentioning both "retry" and "payment"
+slomo search retry payment
+```
+
+When you supply multiple keywords without any `field=value` terms, Slomo returns events that contain **all** of the keywords.
+
+## Field filters
+
+Append one or more `field=value` tokens to restrict results to events where that field matches exactly. Any key in the event payload can be used as a filter field.
+
+| Filter | Matches events where… |
+|---|---|
+| `module=checkout` | The recording module is `checkout` |
+| `function=process_order` | The recording function is `process_order` |
+| `user=42` | The `user` context value equals `42` |
+
+```bash
+# All events from the checkout module
+slomo search module=checkout
+
+# All events tied to user 42
+slomo search user=42
+
+# Errors from the payments function
+slomo search function=charge_card error
+```
+
+<Note>
+Field names come from the event payload structure. Beyond the built-in fields (`module`, `function`, `user`), any key you attach through Slomo's context API is searchable the same way.
+</Note>
+
+## Combining keywords and filters
+
+Keywords and field filters can be mixed freely in a single query. Slomo applies all field filters first, then runs the keyword match against the remaining events:
+
+```bash
+# SQL events in the checkout module containing "timeout"
+slomo search module=checkout timeout
+
+# Any event for user 42 mentioning "error"
+slomo search user=42 error
+
+# HTTP events in the api module with "connection refused" in the payload
+slomo search "connection refused" module=api
+
+# All events in the checkout module with a SQL keyword
+slomo search module=checkout sql
+```
+
+## Output format
+
+Results are displayed as a table with four columns:
+
+| Column | Contents |
+|---|---|
+| `when` | Timestamp of the event |
+| `session` | The session ID the event belongs to |
+| `type` | Event type (e.g. `exception`, `log`, `sql`, `http`) |
+| `snippet` | The matching portion of the event payload, with the keyword highlighted |
+
+```console
+$ slomo search user=42 error
+
+when                      session       type        snippet
+────────────────────────  ────────────  ──────────  ─────────────────────────────────────────
+2024-11-14 09:12:03.512   abc123def456  exception   ConnectionRefusedError: [Errno 111] …
+2024-11-14 09:12:03.513   abc123def456  log         ERROR  Failed to dispatch confirmation …
+2024-11-14 09:15:44.201   ff9900aabb12  log         ERROR  Payment declined for user 42
+```
+
+## Limiting results
+
+If a broad query returns more than 50 results (the default), use `-n` to raise or lower the cap:
+
+```bash
+# Return up to 200 results
+slomo search timeout -n 200
+
+# Return only the 5 most recent matches
+slomo search module=checkout -n 5
+```
+
+<Tip>
+Once you find the session you are looking for, copy the session ID from the `session` column and open it directly in the TUI: `slomo replay <session_id>`. You can then press `/` inside the TUI to repeat the same search within that session.
+</Tip>

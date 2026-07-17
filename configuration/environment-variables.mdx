@@ -1,0 +1,88 @@
+---
+title: "Slomo Environment Variable Reference"
+sidebarTitle: "Env Variables"
+description: "Override any Slomo config.toml setting at runtime using environment variables. Useful for CI, containers, and toggling recording without editing files."
+---
+
+Environment variables give you a lightweight way to change Slomo's behaviour without touching `config.toml`. They are especially useful in CI pipelines, Docker containers, and staging environments where you want recording off by default but need to be able to enable it for a specific run without redeploying configuration files.
+
+## How env vars relate to config.toml
+
+Environment variables **override** their corresponding `config.toml` settings — they do not replace the entire config. Any option that does not have a corresponding env var (for example, `max_value_repr` or `flush_interval_s`) continues to be read from `config.toml` or its default. You can freely mix both mechanisms: keep your baseline settings in `config.toml` and use env vars to flip individual switches at runtime.
+
+The override is resolved once, at the moment `slomo.enable()` is called. Changing an env var after that point has no effect on a running process.
+
+## Boolean value parsing
+
+All Slomo environment variables are boolean switches. Slomo treats the following values as **falsy** (disabled):
+
+- `0`
+- `false`
+- `no`
+- `off`
+- *(empty string)*
+
+Every other non-empty value — including `1`, `true`, `yes`, `on` — is treated as truthy (enabled). Comparisons are case-insensitive, so `FALSE`, `False`, and `false` are all equivalent.
+
+## Environment variable reference
+
+| Variable | Overrides | Default | Description |
+|---|---|---|---|
+| `SLOMO_ENABLED` | `recording.enabled` | `true` | Master on/off switch for all recording. Set to `0` to disable Slomo entirely without removing the `slomo.enable()` call from your code. |
+| `SLOMO_AUTOTRACE` | `hooks.autotrace.enabled` | `true` | Enable or disable automatic function-call tracing. Disable when you want to reduce overhead or isolate the impact of other hooks. |
+| `SLOMO_HOOK_HTTP` | `hooks.http.enabled` | `true` | Enable or disable recording of outbound HTTP requests and responses. |
+| `SLOMO_HOOK_SQL` | `hooks.sql.enabled` | `true` | Enable or disable recording of SQL queries. |
+| `SLOMO_HOOK_LOGGING` | `hooks.logging.enabled` | `true` | Enable or disable the logging hook that captures Python log records as timeline events. |
+| `SLOMO_SNAPSHOTS` | `hooks.snapshots.enabled` | `true` | Enable or disable local variable snapshots on exceptions. |
+
+## Common use cases
+
+### Disable recording in test environments
+
+If you run Slomo in your application code and want it silent during automated tests, set `SLOMO_ENABLED=0` in your test runner's environment. Nothing is written to disk and no background threads are started.
+
+```bash
+SLOMO_ENABLED=0 pytest
+```
+
+Or in a `.env` file loaded by your test runner:
+
+```bash
+SLOMO_ENABLED=0
+```
+
+### Disable auto-tracing to reduce overhead
+
+Autotrace instruments every function call in your project, which is powerful but adds measurable overhead in hot paths. If you want to benchmark your application under realistic conditions, or if you are using another profiler simultaneously, disable autotrace while keeping the other hooks active.
+
+```bash
+SLOMO_AUTOTRACE=0 python -m my_app
+```
+
+### Disable a specific hook in production
+
+You can leave `config.toml` untouched and suppress a noisy or unwanted hook at the process level. For example, to disable SQL recording in a read-heavy service where query volume would dominate the timeline:
+
+```bash
+export SLOMO_HOOK_SQL=0
+python -m my_service
+```
+
+### Temporarily enable recording in a container
+
+If your container image ships with `recording.enabled = false` in `config.toml` for safety, you can turn recording on for a specific deployment without rebuilding the image:
+
+```dockerfile
+# In your docker-compose override or Kubernetes pod spec:
+env:
+  - name: SLOMO_ENABLED
+    value: "1"
+```
+
+<Note>
+Environment variables are resolved once when `slomo.enable()` is called. If your application framework loads env vars lazily, make sure they are set before the `slomo.enable()` call executes.
+</Note>
+
+<Tip>
+In CI, consider setting `SLOMO_ENABLED=0` globally in your pipeline's base environment and then selectively enabling Slomo only in the jobs or stages where you actually want to review recorded sessions.
+</Tip>

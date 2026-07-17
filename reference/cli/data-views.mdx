@@ -1,0 +1,132 @@
+---
+title: "slomo vars, http, sql: Typed Event Views"
+sidebarTitle: "Data Views"
+description: "slomo vars, slomo http, and slomo sql filter a session or issue to specific event types — variable snapshots, HTTP pairs, and SQL queries respectively."
+---
+
+`slomo vars`, `slomo http`, and `slomo sql` are focused views that extract one category of event from a session and display it in a format tailored to that type. Instead of scrolling through a full event stream in the timeline or replay TUI, you can go straight to the variable snapshots, HTTP traffic, or database queries for any session or issue.
+
+## The REF argument
+
+All three commands accept the same optional `REF` argument:
+
+```bash
+slomo vars [REF]
+slomo http [REF]
+slomo sql  [REF]
+```
+
+| Value | Behaviour |
+|---|---|
+| Session ID | Show events from that specific session |
+| Issue ID (`SM-xxxx`) | Show events from the session that produced the issue |
+| _(omitted)_ | Use the most recent session |
+
+---
+
+## slomo vars
+
+`slomo vars` displays every variable snapshot recorded in a session. Snapshots are captured in two ways: explicitly, when your code calls `snapshot()`, and automatically, when Slomo catches an exception and records the local variables at each frame in the traceback.
+
+```bash
+slomo vars
+slomo vars SM-8b6f710a
+slomo vars abc123def456
+```
+
+### Output
+
+Each snapshot is rendered as a labelled JSON panel showing the variable names and their values at the moment of capture:
+
+```console
+$ slomo vars SM-8b6f710a
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ snapshot  ·  2024-11-14 09:12:03.460
+ module: checkout   function: process_order
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{
+  "user_id": 42,
+  "cart_total": 149.99,
+  "promo_code": null,
+  "items": [{"sku": "WIDGET-7", "qty": 2}]
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ exception frame  ·  2024-11-14 09:12:03.512
+ module: checkout   function: dispatch_email
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{
+  "order_id": 9981,
+  "recipient": "user42@example.com",
+  "smtp_host": "mail.internal"
+}
+```
+
+<Tip>
+Use `slomo vars` alongside `slomo replay` when debugging. Open `slomo vars SM-xxxx` in one terminal pane to browse variable values, and use `slomo replay SM-xxxx` in another to step through the event sequence.
+</Tip>
+
+---
+
+## slomo http
+
+`slomo http` extracts every HTTP request/response pair that Slomo recorded in a session and presents them as a compact table.
+
+```bash
+slomo http
+slomo http SM-8b6f710a
+slomo http abc123def456
+```
+
+### Output
+
+```console
+$ slomo http SM-8b6f710a
+
+timestamp                  method  url                                    status  duration
+─────────────────────────  ──────  ─────────────────────────────────────  ──────  ────────
+2024-11-14 09:12:03.441    POST    /api/checkout                          200     312 ms
+2024-11-14 09:12:03.478    POST    https://payments.internal/charge       200      94 ms
+2024-11-14 09:12:03.499    POST    https://mail.internal/send             —       timed out
+```
+
+The `status` column shows the HTTP response code, or a short error label if the request did not complete. The `duration` column is the total round-trip time from when the request was sent to when the response was received.
+
+---
+
+## slomo sql
+
+`slomo sql` extracts every SQL query recorded in a session, showing the query text, how many rows were returned or affected, and how long the query took.
+
+```bash
+slomo sql
+slomo sql SM-8b6f710a
+slomo sql abc123def456
+```
+
+### Output
+
+```console
+$ slomo sql SM-8b6f710a
+
+timestamp                  query                                           rows  duration
+─────────────────────────  ──────────────────────────────────────────────  ────  ────────
+2024-11-14 09:12:03.449    SELECT * FROM cart WHERE user_id = 42             3     2 ms
+2024-11-14 09:12:03.453    SELECT * FROM promos WHERE code = NULL             0     1 ms
+2024-11-14 09:12:03.461    INSERT INTO orders (user_id, total) VALUES …       1     4 ms
+```
+
+Long query strings are truncated in the table view. If you need the full query text, open the session in `slomo replay` and press `i` on the relevant SQL event to see the complete JSON payload.
+
+---
+
+## When to use each view
+
+| Command | Use it when you want to… |
+|---|---|
+| `slomo vars` | Check what values variables held at a crash or snapshot point |
+| `slomo http` | Audit outbound requests, check for slow or failed external calls |
+| `slomo sql` | Find slow queries, missing rows, or unexpected query results |
+
+These commands are intentionally narrow. When you need the complete event-by-event picture, use [`slomo replay`](/reference/cli/replay) or [`slomo timeline`](/reference/cli/timeline) instead.

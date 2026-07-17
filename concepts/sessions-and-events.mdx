@@ -1,0 +1,136 @@
+---
+title: "Sessions and Events: Slomo's Data Model"
+sidebarTitle: "Sessions & Events"
+description: "Learn how Slomo organizes recordings into sessions (one per process run) and events (timestamped function calls, exceptions, SQL queries, HTTP requests, and more)."
+---
+
+Every recording Slomo produces is organized around two building blocks: **sessions** and **events**. A session represents one complete run of your process — from startup to exit. Inside each session, events are the timestamped observations that Slomo captured along the way. Understanding this data model will help you navigate recordings confidently, correlate what happened across threads and processes, and get the most out of the CLI.
+
+## Sessions
+
+A session is created when your process calls `slomo.enable()` and ends when the process exits. It maps directly to one process run, so if you restart your application, a new session starts. If your application forks child processes, each child gets its own session (see [How It Works](/concepts/how-it-works) for details on multi-process behavior).
+
+Every session is identified by a **timestamp-prefixed UUID**, for example `20240912T143201-a3f7b2c1`. You can reference any session by its full ID or by any unambiguous prefix — `slomo session show 20240912` works as long as only one session matches that prefix.
+
+### Session Metadata
+
+Each session records the context it ran in:
+
+| Field | Description |
+|---|---|
+| `id` | Timestamp-prefixed UUID |
+| `argv` | Command-line arguments (`sys.argv`) |
+| `cwd` | Working directory at startup |
+| `python_version` | Python version string |
+| `host` | Hostname |
+| `pid` | Process ID |
+| `started_at` | ISO 8601 timestamp when `enable()` was called |
+| `finished_at` | ISO 8601 timestamp when the process exited (if known) |
+| `status` | One of `running`, `finished`, `crashed`, or `abandoned` |
+| `event_count` | Total number of events recorded |
+| `labels` | Key-value tags, including `forked_from` for child processes |
+
+### Session Status Values
+
+The `status` field tells you how a session ended:
+
+| Status | Meaning |
+|---|---|
+| `running` | The process is still alive. The session file is being actively written. |
+| `finished` | The process exited cleanly (exit code 0 or a handled `SystemExit`). |
+| `crashed` | The process exited due to an unhandled exception. An `error` event is present in the timeline. |
+| `abandoned` | The session was never finalized — the process was likely killed with `kill -9` or lost power. The timeline is still readable up to the last flushed event. |
+
+<Info>
+If you see many `abandoned` sessions during development, it usually means you're stopping your app with Ctrl+C before Slomo's shutdown hook has a chance to run. That's normal — the recordings are still fully usable.
+</Info>
+
+### Navigating Sessions with the CLI
+
+```bash
+# List all sessions, most recent first
+slomo sessions
+
+# Show metadata and a summary for one session
+slomo session show 20240912T143201
+
+# Interactively explore the full timeline of a session
+slomo session inspect 20240912T143201
+```
+
+---
+
+## Events
+
+Events are the individual observations recorded inside a session. Each line in `timeline.jsonl` is one event. Every event shares a common envelope of fields, and carries a `payload` dictionary whose keys depend on the event type.
+
+### Common Event Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | string | The event type (see table below) |
+| `timestamp` | string | ISO 8601 timestamp with microsecond precision |
+| `severity` | string | One of `debug`, `info`, `warning`, `error`, `critical` |
+| `span_id` | string | Unique ID for this event's span |
+| `parent_span_id` | string \| null | ID of the enclosing span, or `null` for root events |
+| `trace_id` | string | ID shared by all events in one logical request or task |
+| `payload` | object | Type-specific fields (see below) |
+
+### Event Types
+
+| Type | What it captures | Key payload fields |
+|---|---|---|
+| `function.enter` | Entry into a tracked function | `function`, `module`, `args`, `kwargs` |
+| `function.exit` | Return from a tracked function | `function`, `module`, `result`, `duration_ns` |
+| `function.exception` | Exception that escaped a tracked function | `function`, `module`, `exception_type`, `message`, `traceback` |
+| `error` | Unhandled exception (main thread, worker thread, or unraisable) | `exception_type`, `message`, `traceback`, `thread_name` |
+| `http.request` | Outbound HTTP request dispatched | `method`, `url`, `headers` |
+| `http.response` | Response received for an outbound request | `method`, `url`, `status_code`, `duration_ns` |
+| `sql.query` | SQL statement about to execute | `statement`, `parameters`, `engine` |
+| `sql.result` | Result of a SQL statement | `statement`, `row_count`, `duration_ns` |
+| `log` | `logging.WARNING`-or-above log record | `level`, `logger`, `message`, `filename`, `lineno` |
+| `variable.snapshot` | Captured local variables (explicit or on exception) | `variables`, `function`, `trigger` |
+| `custom` | User-emitted event via the Slomo API | *(any fields you provide)* |
+
+<Tip>
+`http.request` and `http.response` are always paired by `span_id`. When you look up an `http.request` event, the matching `http.response` shares the same `span_id`, making it easy to compute round-trip duration and correlate request with response headers.
+</Tip>
+
+### Event Severity
+
+Slomo assigns severity automatically based on the event type and context. You can use severity as a fast filter when exploring long timelines.
+
+| Severity | When assigned |
+|---|---|
+| `debug` | `function.enter`, `function.exit` — normal call flow |
+| `info` | `http.request`, `http.response`, `sql.query`, `sql.result`, `log` (INFO level), `custom` |
+| `warning` | `log` records at WARNING level; HTTP responses with 4xx status codes |
+| `error` | `function.exception`, HTTP responses with 5xx status codes, `log` records at ERROR level |
+| `critical` | `error` events (unhandled exceptions) |
+
+---
+
+## The Span Tree
+
+Every event carries a `span_id` and an optional `parent_span_id`. These two fields form a tree that represents the causal hierarchy of your program's execution — which function called which, which HTTP request was made inside which function, and so on.
+
+Consider a request handler that calls a helper that executes a SQL query:
+
+```
+[trace_id: abc123]
+│
+├── function.enter  handle_request          span_id: s1   parent: null
+│   ├── function.enter  fetch_user          span_id: s2   parent: s1
+│   │   ├── sql.query   SELECT * FROM ...   span_id: s3   parent: s2
+│   │   └── sql.result  2 rows              span_id: s3   parent: s2
+│   └── function.exit   fetch_user          span_id: s2   parent: s1
+└── function.exit   handle_request          span_id: s1   parent: null
+```
+
+The `trace_id` ties together all events that belong to the same logical operation — for example, a single HTTP request flowing through multiple functions. Within that trace, `span_id` and `parent_span_id` let you reconstruct the exact call tree.
+
+<Note>
+Events emitted from different threads share a `trace_id` only when you propagate it explicitly (for example, by passing a context object to a thread pool). Events from independent threads each start their own trace unless linked.
+</Note>
+
+The `slomo session inspect` command renders this tree visually, so you rarely need to interpret the raw IDs yourself. But understanding the structure helps when you're writing custom queries against the raw JSONL files.

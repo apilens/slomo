@@ -1,0 +1,119 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Slomo",
+  "projectDescription": "A zero-config Python library and CLI that records every function call, exception, SQL query, and HTTP request in your application so you can replay and diagnose crashes from your terminal.",
+  "theme": "luma",
+  "primaryColor": "#515254",
+  "lightColor": "#b4b4b4",
+  "darkColor": "#6c6b6d",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/sessions-and-events",
+              "concepts/issues"
+            ]
+          },
+          {
+            "group": "Recording",
+            "pages": [
+              "recording/auto-tracing",
+              "recording/manual-instrumentation",
+              "recording/web-frameworks",
+              "recording/workers-and-async",
+              "recording/redaction"
+            ]
+          },
+          {
+            "group": "Investigating",
+            "pages": [
+              "investigating/issues-workflow",
+              "investigating/replay",
+              "investigating/search-and-timeline",
+              "investigating/exporting"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/config-toml",
+              "configuration/environment-variables",
+              "configuration/storage-layout"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Python API",
+            "pages": [
+              "reference/python-api"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "reference/cli/overview",
+              "reference/cli/sessions",
+              "reference/cli/issues",
+              "reference/cli/doctor",
+              "reference/cli/replay",
+              "reference/cli/timeline",
+              "reference/cli/search",
+              "reference/cli/data-views",
+              "reference/cli/export",
+              "reference/cli/maintenance"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Zero-config recording: two lines of Python captures function calls, exceptions, SQL, HTTP, and logs",
+    "Interactive terminal replay: step through any crash event-by-event with slomo replay",
+    "Automatic issue deduplication: crashes are fingerprinted and grouped so the same bug increments one counter",
+    "Heuristic root-cause diagnosis via slomo doctor: identifies null references, bad variables, and likely fix",
+    "Full-text search across all recorded events with field filters",
+    "Auto-tracing via sys.monitoring (PEP 669): traces project code with near-zero overhead",
+    "Privacy-first redaction: secrets, tokens, and keys are scrubbed at capture time before hitting disk",
+    "Crash-safe append-only JSONL storage with no external dependencies"
+  ],
+  "publicApiSurface": [
+    "slomo.enable(root, labels, hooks) — start recording the current process",
+    "slomo.disable() — stop recording and finalize the session",
+    "slomo.track — decorator for explicit function span recording (sync, async, generators)",
+    "slomo.snapshot(label, **variables) — record an explicit variable snapshot",
+    "slomo.event(name, severity, **payload) — record a custom event",
+    "slomo.install_hooks() — re-run hook installation after late imports",
+    "slomo.flush() — block until all buffered events are flushed to disk",
+    "slomo init — scaffold .slomo/ with commented config",
+    "slomo sessions / slomo session show|inspect|delete ID",
+    "slomo issues / slomo issue show|occurrences|timeline|resolve|reopen|explain ID",
+    "slomo doctor ISSUE — heuristic root-cause diagnosis",
+    "slomo replay ISSUE|SESSION — interactive step-through TUI",
+    "slomo timeline [REF] [--follow] [--errors]",
+    "slomo search QUERY [field=value ...]",
+    "slomo vars / slomo http / slomo sql [REF]",
+    "slomo stats [--rebuild-index]",
+    "slomo export json|markdown|csv|html",
+    "slomo prune [--keep N]",
+    ".slomo/config.toml — recording, storage, redaction, hooks configuration",
+    "SLOMO_ENABLED, SLOMO_AUTOTRACE, SLOMO_HOOK_HTTP, SLOMO_HOOK_SQL, SLOMO_HOOK_LOGGING, SLOMO_SNAPSHOTS environment variables"
+  ]
+}

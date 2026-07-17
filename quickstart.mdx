@@ -38,7 +38,8 @@ This guide walks you through installing Slomo, wiring it into a Python app, and 
   <Step title="Run your app and trigger a crash">
     To see Slomo in action, save the following as `app.py` in an empty directory and run it. The script has a deliberate bug — `checkout()` crashes when the requested SKU is missing from the database.
 
-    ```python app.py
+    ```python
+    # app.py
     import sqlite3
     import slomo
     from slomo import track
@@ -68,7 +69,13 @@ This guide walks you through installing Slomo, wiring it into a Python app, and 
     python app.py
     ```
 
-    When the script exits (even after a crash), Slomo writes the full session recording to `.slomo/` in the current directory. The directory is created automatically on the first run.
+    When the script exits (even after a crash), Slomo writes the full session recording to `.slomo/` in the current directory. The directory is created automatically on the first run — you don't need to do anything to set it up.
+
+    ```
+    .slomo/
+    └── sessions/
+        └── <session-id>.jsonl
+    ```
   </Step>
 
   <Step title="Explore the recording with the CLI">
@@ -80,7 +87,7 @@ This guide walks you through installing Slomo, wiring it into a Python app, and 
     slomo issues
     ```
 
-    ```console
+    ```
     ┃ issue        ┃ title                                      ┃ category       ┃ count ┃
     │ SM-8b6f710a  │ TypeError: 'NoneType' object is not subsc… │ Null Reference │     5 │
     ```
@@ -93,7 +100,7 @@ This guide walks you through installing Slomo, wiring it into a Python app, and 
     slomo doctor SM-8b6f710a
     ```
 
-    ```console
+    ```
     Category              Null Reference  (95% confidence)
     Occurrences           5  (5 unhandled) across 5 session(s)
     Likely root cause     TypeError raised in checkout() at app.py:14.

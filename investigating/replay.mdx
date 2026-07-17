@@ -1,0 +1,137 @@
+---
+title: "Replaying Crashes Step-by-Step in Slomo"
+sidebarTitle: "Replay"
+description: "Use slomo replay to step through any recorded session or issue event-by-event in your terminal. Navigate with keyboard shortcuts and inspect variables at any point."
+---
+
+When a crash happens, reading a traceback tells you *where* the code failed — but it rarely tells you *why*. Slomo's replay TUI lets you walk through every recorded event in a session the same way a debugger lets you step through running code: one event at a time, in your terminal, with full variable state available at every step. You can start from an issue and land directly at the error, or start from a session ID and explore from the beginning.
+
+## Starting a Replay
+
+### Replay from an issue
+
+```bash
+slomo replay SM-0001
+```
+
+When you pass an issue ID, Slomo opens the session that produced the **most recent** occurrence and automatically jumps the cursor to the first error event. You don't have to hunt for the crash — you land right on it.
+
+### Replay from a session
+
+```bash
+slomo replay sess_a1b2c3d4
+```
+
+When you pass a session ID, Slomo opens that session at the very beginning and you step forward from event one. Use this when you want to understand what led up to a crash in a specific session, or when you're exploring a session that didn't crash at all.
+
+<Tip>
+  Not sure which session ID to use? Run `slomo sessions` to list recent sessions, or `slomo issue occurrences SM-xxxx` to see every session associated with a particular issue.
+</Tip>
+
+---
+
+## The TUI Interface
+
+The replay TUI displays one event at a time. At the top you see the event number, timestamp, event type, and any associated data. At the bottom is a status bar showing your current position in the timeline and available keyboard shortcuts.
+
+The TUI is fully keyboard-driven. No mouse required.
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `n` or `→` | Move to the **next** event |
+| `p` or `←` | Move to the **previous** event |
+| `j` | **Jump** to a specific event by number |
+| `t` | Jump to the **first error** event in the session |
+| `/query` | **Search** for events matching `query` |
+| `i` | **Inspect** the current event in full detail |
+| `v` | Show **variable snapshots** captured at or before the current event |
+| `q` or `Esc` | **Quit** the TUI and return to your terminal |
+
+<Note>
+  Press `t` at any time to jump straight to the first error, even if you've navigated away from it. This is handy after you've browsed earlier events and want to return to the crash site quickly.
+</Note>
+
+---
+
+## Inspecting Variables
+
+Slomo captures variable state at two points: whenever your code calls a manual snapshot, and automatically at every exception site. To view variables at your current position in the replay:
+
+Press **`v`** inside the TUI, or run the standalone command outside the TUI:
+
+```bash
+slomo vars SM-0001
+```
+
+```bash
+# Or for a specific session
+slomo vars sess_a1b2c3d4
+```
+
+The output lists every variable Slomo captured, grouped by the function they were recorded in, along with their values and the timestamp of the snapshot.
+
+This is often the fastest way to confirm the value of the variable your `slomo doctor` diagnosis flagged as the first bad variable.
+
+---
+
+## Searching Within a Session
+
+Inside the TUI, type `/` followed by a search term and press Enter:
+
+```
+/checkout
+```
+
+Slomo jumps to the next event whose data matches the query. Press `/` again and Enter to repeat the search and advance to the next match.
+
+Search matches work against event types, messages, function names, module names, and any other string data attached to the event.
+
+---
+
+## Non-Interactive Modes
+
+If you prefer to work with the event data outside the TUI — for scripting, logging, or diffing — Slomo offers two non-interactive output modes.
+
+### Print the full timeline
+
+```bash
+slomo replay SM-0001 --trace
+```
+
+Prints every event in the session to stdout in a human-readable chronological list. Useful for grepping, piping to a pager, or pasting into a bug report.
+
+### Export as JSON
+
+```bash
+slomo replay SM-0001 --json
+```
+
+Prints every event as a JSON stream (one object per line). Use this when you want to process the data programmatically — for example, to count event types, extract specific fields, or feed events into another tool.
+
+```bash
+# Example: count events by type
+slomo replay SM-0001 --json | jq -r '.type' | sort | uniq -c | sort -rn
+```
+
+---
+
+## Combining Replay with Focused Data Views
+
+The replay TUI gives you the full event stream. For a deeper look at specific kinds of data, pair it with Slomo's focused data-view commands. All three accept a session ID, an issue ID, or no argument (defaulting to the latest session).
+
+```bash
+# All HTTP request/response pairs recorded in a session
+slomo http sess_a1b2c3d4
+
+# All SQL queries and their results
+slomo sql SM-0001
+
+# All variable snapshots
+slomo vars SM-0001
+```
+
+A common workflow is to run `slomo replay SM-xxxx` to orient yourself in the timeline, then open a second terminal and run `slomo sql SM-xxxx` to see whether a database query returned unexpected data just before the crash — exactly the kind of clue `slomo doctor` will have flagged in the **Context just before the crash** section of its output.

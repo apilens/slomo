@@ -1,0 +1,163 @@
+---
+title: "Slomo Local Storage Layout and Data Files"
+sidebarTitle: "Storage Layout"
+description: "Understand how Slomo organizes recorded sessions, issues, and exports under .slomo/ in your project directory. Covers the JSONL timeline format and index rebuilding."
+---
+
+Slomo stores everything it records in a `.slomo/` directory at the root of your project. All data stays on your machine — nothing is uploaded to an external service or shared with anyone. Understanding the layout helps you manage disk usage, inspect raw recordings, and recover from an inconsistent state if something goes wrong.
+
+## Directory tree
+
+```
+.slomo/
+├── config.toml                   ← your configuration file
+├── .gitignore                    ← auto-managed; keeps .slomo/ out of version control
+├── sessions/
+│   └── <timestamp>-<uuid>/       ← one directory per recorded session
+│       ├── metadata.json         ← session metadata (pid, argv, timing, status)
+│       ├── timeline.jsonl        ← append-only event stream (source of truth)
+│       ├── snapshots/            ← oversized variable captures stored as individual files
+│       └── attachments/          ← reserved for future use
+├── issues/
+│   └── index.sqlite              ← derived issue index (rebuildable from timeline files)
+├── exports/                      ← files written by `slomo export`
+└── cache/                        ← internal cache (safe to delete)
+```
+
+## Session directories
+
+Each time your application starts and Slomo's `enable()` call is reached, a new session directory is created under `sessions/`. The directory is named by combining an ISO 8601 timestamp with a UUID, for example:
+
+```
+sessions/2024-11-14T09-32-05-abc123de-f456-7890-abcd-ef1234567890/
+```
+
+The timestamp comes first so that sessions sort chronologically in any file browser or `ls` output.
+
+### metadata.json
+
+`metadata.json` is written at session start and updated when the process exits. It contains identifying information about the run, including:
+
+- Process ID (`pid`)
+- Command-line arguments (`argv`)
+- Working directory
+- Python version and platform
+- Session start time and end time
+- Exit status (clean exit, unhandled exception, or still running)
+
+You can read `metadata.json` directly with any JSON tool if you want to identify a session without opening the full timeline.
+
+### timeline.jsonl
+
+`timeline.jsonl` is the append-only event stream and the **source of truth** for everything Slomo records. Each line is a self-contained JSON object representing a single event — a function call, an HTTP request, a SQL query, a log record, an exception, or a variable snapshot reference. Events are written in chronological order as they occur.
+
+Because JSONL is plain text with one event per line, you can inspect it with standard tools:
+
+```bash
+# Print the last 20 events from the most recent session
+tail -n 20 .slomo/sessions/$(ls -t .slomo/sessions | head -1)/timeline.jsonl | jq .
+
+# Search for all ERROR-level log events across all sessions
+grep '"level":"ERROR"' .slomo/sessions/*/timeline.jsonl
+```
+
+<Note>
+The `timeline.jsonl` file is never rewritten or compacted by Slomo. If you manually edit it, the SQLite index will be out of sync until you run `slomo stats --rebuild-index`.
+</Note>
+
+### snapshots/
+
+When a captured value exceeds the `max_payload_bytes` limit (64 KB by default), Slomo writes it to a separate file inside `snapshots/` rather than embedding it inline in the timeline. The timeline event contains a reference to the snapshot file. This keeps `timeline.jsonl` scannable even when individual variable values are very large.
+
+### attachments/
+
+The `attachments/` directory is reserved for future use and will be empty in current versions of Slomo.
+
+---
+
+## issues/index.sqlite
+
+`index.sqlite` is a SQLite database that Slomo builds from the raw timeline files. It powers the `slomo issues` command and other queries that need to search across sessions efficiently. The database is a **derived cache** — if it is deleted or becomes corrupt, Slomo can rebuild it entirely from the JSONL files.
+
+If you ever see stale or missing data in `slomo issues` output, regenerate the index:
+
+```bash
+slomo stats --rebuild-index
+```
+
+This drops the existing database and re-reads every `timeline.jsonl` file under `sessions/`. On large session archives the rebuild may take a few seconds.
+
+<Tip>
+The `issues/` directory and its SQLite file can be safely excluded from any backup if you are already backing up the `sessions/` directory — you can always recreate the index.
+</Tip>
+
+---
+
+## .gitignore
+
+Slomo automatically adds an entry for `.slomo/` to your project's `.gitignore` when it first creates the directory. Recorded sessions can be large and contain sensitive runtime data; they should not be committed to version control.
+
+If you use a monorepo or a non-standard project layout, verify that the `.gitignore` entry is in the right place. Slomo writes to the `.gitignore` in the same directory as `config.toml`.
+
+<Warning>
+If you remove the `.gitignore` entry by accident, run `slomo init` again — it will restore the entry without overwriting your existing `config.toml`.
+</Warning>
+
+---
+
+## exports/
+
+Files written by `slomo export` land in `exports/`. Exports are standalone files (JSON, HTML, or other formats depending on the export command) that you can share or archive without giving access to the full session directory.
+
+The `exports/` directory is not managed by Slomo's retention logic. You are responsible for cleaning it up.
+
+---
+
+## cache/
+
+`cache/` holds internal data that Slomo uses to speed up repeated operations. It is safe to delete at any time — Slomo will recreate it on the next run.
+
+---
+
+## Managing storage
+
+### Checking storage usage
+
+`slomo stats` prints a summary of how many sessions are on disk, total storage consumed, and the age of the oldest and newest sessions.
+
+```bash
+slomo stats
+```
+
+### Pruning old sessions
+
+Slomo does not automatically delete sessions. When the number of sessions on disk exceeds `retention_max_sessions` (default: 200), run `slomo prune` to remove the oldest ones:
+
+```bash
+# Preview what would be deleted (dry run — omit -y to confirm interactively)
+slomo prune
+
+# Delete oldest sessions beyond the retention limit without prompting
+slomo prune -y
+
+# Keep only the most recent 50 sessions, regardless of the configured limit
+slomo prune --keep 50 -y
+```
+
+`slomo prune` removes entire session directories, including `timeline.jsonl`, `metadata.json`, and `snapshots/`. The operation is irreversible, so review the output before confirming.
+
+### Rebuilding the issue index
+
+If the SQLite index becomes inconsistent — for example, after manually deleting session directories or after an unexpected process termination — rebuild it from scratch:
+
+```bash
+slomo stats --rebuild-index
+```
+
+The underlying `timeline.jsonl` files are never modified by this command.
+
+---
+
+## Local-only storage
+
+Slomo is a local flight recorder. No data is transmitted off your machine. There are no API keys, no cloud endpoints, and no telemetry. Every file under `.slomo/` is created and read exclusively by Slomo processes running on the same host.

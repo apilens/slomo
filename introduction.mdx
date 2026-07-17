@@ -1,0 +1,78 @@
+---
+title: "Slomo: Flight Recorder for Python Applications"
+sidebarTitle: "Introduction"
+description: "Slomo records every function call, crash, SQL query, and HTTP request in your Python app locally — replay and diagnose bugs from your terminal without a server or account."
+---
+
+Slomo is a zero-config flight recorder for Python applications. Drop two lines into your app and Slomo silently captures every function call, unhandled exception, SQL query, HTTP request, and log record to a local append-only log — then gives you a terminal UI to replay and diagnose crashes without touching a server, creating an account, or changing how you work.
+
+Think of it as a black box for your Python process: when something goes wrong, you already have everything you need to understand exactly what happened and why.
+
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Install Slomo, add two lines to your app, and explore your first crash recording in under five minutes.
+  </Card>
+  <Card title="Installation" icon="box-open" href="/installation">
+    System requirements, pip/uv/pipx install commands, and optional integrations for requests, httpx, and SQLAlchemy.
+  </Card>
+  <Card title="Core Concepts" icon="book-open" href="/concepts/how-it-works">
+    Learn how Slomo uses PEP 669 / sys.monitoring to instrument your code with near-zero overhead.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/reference/cli/overview">
+    Full reference for `slomo issues`, `slomo doctor`, `slomo replay`, `slomo init`, and more.
+  </Card>
+</CardGroup>
+
+## How it works
+
+<Steps>
+  <Step title="Install the package">
+    Add Slomo to your project with a single pip command. No Docker, no external server, no account required.
+
+    ```bash
+    pip install slomo
+    ```
+  </Step>
+  <Step title="Enable recording in your app">
+    Call `slomo.enable()` at the top of your entry point. That's it — Slomo starts recording immediately and creates a `.slomo/` directory in your project folder the first time your app runs.
+
+    ```python
+    from slomo import enable
+
+    enable()
+    ```
+  </Step>
+  <Step title="Replay and diagnose crashes from your terminal">
+    Use the built-in CLI to browse crashes, get an AI-style root-cause summary, or step through a full interactive replay of any session.
+
+    ```bash
+    slomo issues          # list crashes grouped by fingerprint
+    slomo doctor SM-xxxx  # root-cause diagnosis with suggested fix
+    slomo replay SM-xxxx  # interactive step-through TUI
+    ```
+  </Step>
+</Steps>
+
+## Why Slomo?
+
+<CardGroup cols={2}>
+  <Card title="Fully local — no account, no telemetry" icon="lock">
+    Every recording lives under `.slomo/` in your project directory. Nothing leaves your machine.
+  </Card>
+  <Card title="Near-zero overhead" icon="gauge-high">
+    `enable()` completes in under 5 ms. Instrumentation is powered by `sys.monitoring` (PEP 669), the low-overhead monitoring API introduced in Python 3.12.
+  </Card>
+  <Card title="Automatic — records everything" icon="circle-dot">
+    Function calls, exceptions with local variables, SQL queries, HTTP requests, log records, and session metadata are all captured without any manual instrumentation.
+  </Card>
+  <Card title="Crash-safe storage" icon="shield-halved">
+    Recordings are written to an append-only JSONL file, so data is never lost even if your process crashes mid-write.
+  </Card>
+</CardGroup>
+
+<Note>
+  Slomo requires **Python 3.12 or later** and is licensed under the MIT License.
+  See the [Installation](/installation) page for full system requirements.
+</Note>

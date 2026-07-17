@@ -1,0 +1,93 @@
+---
+title: "slomo timeline: Chronological Event Feed"
+sidebarTitle: "timeline"
+description: "slomo timeline prints a session's events in order. Use --follow to live-tail a running app, or --errors to filter to warnings and errors only."
+---
+
+`slomo timeline` prints every event in a session as a chronological, one-line-per-event feed in your terminal. It is the fastest way to get a high-level read of what happened during a session — or what is happening right now — without opening the interactive replay TUI.
+
+## Syntax
+
+```bash
+slomo timeline [REF] [--follow] [--errors]
+```
+
+| Argument / Flag | Description |
+|---|---|
+| `REF` | Session ID, issue ID (`SM-xxxx`), or empty for the latest session |
+| `--follow` / `-f` | Live-tail a running session; polls every 0.5 s. Stop with Ctrl-C |
+| `--errors` | Show only events with severity `WARNING` or higher |
+
+## The REF argument
+
+`REF` accepts the same three forms as `slomo replay`:
+
+```bash
+# Latest session
+slomo timeline
+
+# Specific session
+slomo timeline abc123def456
+
+# Specific issue — shows events from the session that produced it
+slomo timeline SM-8b6f710a
+```
+
+When you pass an issue ID, the timeline displays the events from the session that produced that issue, not just the error event itself. This gives you the full before-and-after context around the failure.
+
+## Example output
+
+```console
+$ slomo timeline SM-8b6f710a
+
+2024-11-14 09:12:03.441  request       POST /api/checkout
+2024-11-14 09:12:03.449  sql           SELECT * FROM cart WHERE user_id = 42  (3 rows, 2 ms)
+2024-11-14 09:12:03.461  sql           INSERT INTO orders …  (1 row, 4 ms)
+2024-11-14 09:12:03.478  http          POST https://payments.internal/charge  → 200  (94 ms)
+2024-11-14 09:12:03.490  log           INFO  Order 9981 created
+2024-11-14 09:12:03.512  exception     ConnectionRefusedError: [Errno 111] Connection refused
+2024-11-14 09:12:03.513  log           ERROR  Failed to dispatch confirmation email
+```
+
+Each line shows the wall-clock timestamp, the event type, and a brief summary. Error and warning events are highlighted so they stand out in the stream.
+
+## Live-tailing with --follow
+
+Pass `--follow` (or `-f`) when you want to watch a session as it is being recorded:
+
+```bash
+slomo timeline --follow
+slomo timeline abc123def456 --follow
+```
+
+Slomo polls the session store every 0.5 seconds and appends new events to the output as they arrive. Press **Ctrl-C** to stop tailing. If the session ends before you stop, the feed stops on its own and prints a summary line.
+
+<Note>
+`--follow` only works while the target session is still active. If you pass a completed session ID, the timeline prints all existing events and exits immediately — it does not block waiting for more.
+</Note>
+
+## Filtering to errors with --errors
+
+For long sessions with thousands of events, `--errors` hides everything below `WARNING` severity and gives you a noise-reduced view:
+
+```bash
+slomo timeline --errors
+slomo timeline SM-8b6f710a --errors
+```
+
+```console
+$ slomo timeline SM-8b6f710a --errors
+
+2024-11-14 09:12:03.512  exception     ConnectionRefusedError: [Errno 111] Connection refused
+2024-11-14 09:12:03.513  log           ERROR  Failed to dispatch confirmation email
+```
+
+You can combine `--errors` with `--follow` to get a live stream of warnings and errors only:
+
+```bash
+slomo timeline --follow --errors
+```
+
+<Tip>
+Use `slomo timeline --errors` as a quick first pass on any session before opening `slomo replay`. It tells you how many problems occurred and where in the timeline they sit, so you can navigate the TUI directly to the relevant area.
+</Tip>

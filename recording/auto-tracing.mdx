@@ -1,0 +1,126 @@
+---
+title: "Auto-Tracing: Record All Function Calls Automatically"
+sidebarTitle: "Auto-Tracing"
+description: "Slomo auto-traces every function call in your project using Python's sys.monitoring — no decorators needed. Learn how to configure include/exclude paths and tune capture settings."
+---
+
+Slomo's auto-tracing engine records every function call in your project the moment you call `slomo.enable()` — no decorators, no code changes, no instrumentation libraries. It hooks into Python's built-in `sys.monitoring` API (introduced in PEP 669, Python 3.12+) to observe function enter and exit events at the interpreter level, then writes the results into your local Slomo session.
+
+## How It Works
+
+Auto-tracing uses `sys.monitoring` to register callbacks for function call and return events across your entire codebase. When a function is called, Slomo captures the function name, module, arguments, return value, execution duration, and any exception that escapes the frame. It does this without patching functions, without import hooks, and without modifying your source code.
+
+**What auto-tracing captures for each call:**
+
+- Function name and fully qualified module path
+- Positional and keyword arguments (can be disabled)
+- Return value (can be disabled)
+- Wall-clock duration in milliseconds
+- Any exception that escapes the frame, including its type, message, and local variables at the point of raise
+
+### Project Root Detection
+
+Auto-tracing only traces files that live inside your **project root** — it ignores stdlib modules, installed packages, and anything outside your codebase. By default, the project root is the current working directory at the time you call `slomo.enable()`.
+
+To override it, pass an explicit path:
+
+```python
+import slomo
+
+slomo.enable(root="/srv/app/src")
+```
+
+You can also pass a `pathlib.Path`:
+
+```python
+from pathlib import Path
+import slomo
+
+slomo.enable(root=Path(__file__).parent)
+```
+
+### Why Overhead Is Negligible
+
+The first time `sys.monitoring` fires a callback for a call site in stdlib or a third-party package, Slomo immediately disables that call site. After the first hit, those locations produce zero ongoing overhead — the interpreter skips the callback entirely. Only call sites inside your project root remain active throughout the session.
+
+## Configuring Auto-Tracing
+
+All auto-trace settings live under `[hooks.autotrace]` in your `.slomo/config.toml`. None of these fields are required — the defaults are designed to work out of the box.
+
+```toml
+[hooks.autotrace]
+enabled = true          # set to false to disable auto-tracing entirely
+capture_args = true     # record function arguments
+capture_results = true  # record return values
+include = []            # extra root-relative or absolute glob patterns to trace
+exclude = []            # glob patterns to skip
+```
+
+### Include and Exclude Globs
+
+Use `include` to pull in code that lives outside your project root — for example, a shared library installed to a non-standard path:
+
+```toml
+[hooks.autotrace]
+include = [
+  "/opt/shared-lib/payments/*",
+  "/opt/shared-lib/auth/*"
+]
+```
+
+Use `exclude` to silence noisy paths you don't care about — generated code, vendored dependencies, or test fixtures:
+
+```toml
+[hooks.autotrace]
+exclude = [
+  "*/generated/*",
+  "*/vendor/*",
+  "*/migrations/*",
+  "tests/fixtures/*"
+]
+```
+
+Both `include` and `exclude` accept standard `fnmatch`-style glob patterns. `exclude` takes precedence over `include` when a path matches both.
+
+### Disabling Arg or Result Capture
+
+If you want the call graph without the payload — for example, to reduce session size or avoid capturing large objects — turn off argument and result recording independently:
+
+```toml
+[hooks.autotrace]
+capture_args = false
+capture_results = false
+```
+
+<Note>
+  Disabling `capture_args` and `capture_results` still records function names, durations, and exceptions. You lose variable-level detail but keep the full call timeline.
+</Note>
+
+## Disabling Auto-Tracing Entirely
+
+### Via environment variable
+
+Set `SLOMO_AUTOTRACE=0` before starting your process. This is useful in production environments where you want Slomo's other hooks (HTTP, SQL, logging) but not function-level tracing:
+
+```bash
+SLOMO_AUTOTRACE=0 python -m myapp
+```
+
+### Via config
+
+```toml
+[hooks.autotrace]
+enabled = false
+```
+
+Both methods are equivalent. The environment variable takes precedence over config.
+
+## Auto-Tracing and `@track`
+
+The `@track` decorator and auto-tracing are complementary. Any function already decorated with `@track` is **never recorded twice** — auto-trace detects the decorator and skips those call sites to avoid duplicate entries in your timeline.
+
+Use `@track` when you need finer control over a specific function: capturing arguments from code outside the project root, suppressing result capture for a single function, or giving a function a custom display name in the timeline. See [Manual Instrumentation](/recording/manual-instrumentation) for the full `@track` reference.
+
+<Tip>
+  Start with auto-tracing enabled and use `slomo replay` to browse your first session. Once you've identified noisy paths or missing coverage, tune `include` and `exclude` from there.
+</Tip>

@@ -1,0 +1,240 @@
+---
+title: "Investigating Crashes with Slomo Issues"
+sidebarTitle: "Issues Workflow"
+description: "Use slomo issues, slomo doctor, and slomo issue commands to triage crashes, understand root causes, and track fixes across multiple sessions."
+---
+
+Slomo groups every crash it records into an **issue** — a deduplicated bucket of incidents that share the same root cause. Rather than reading through raw logs, you work with issues to see how often a bug fires, which sessions it hit, and exactly what your code was doing the moment it blew up. This page walks you through the full triage workflow from first alert to confirmed fix.
+
+## The Triage Workflow
+
+A typical investigation follows four steps:
+
+<Steps>
+  <Step title="List open issues">
+    Run `slomo issues` to see every unresolved crash group in your project.
+  </Step>
+  <Step title="Inspect the details">
+    Run `slomo issue show SM-xxxx` to read the full incident report for the issue that looks most serious.
+  </Step>
+  <Step title="Diagnose the root cause">
+    Run `slomo doctor SM-xxxx` to get a heuristic breakdown: what failed, which variable was the culprit, and what to fix.
+  </Step>
+  <Step title="Replay the crash">
+    Run `slomo replay SM-xxxx` to step through the exact sequence of events that led to the error. See [Replay](/investigating/replay) for details.
+  </Step>
+</Steps>
+
+---
+
+## Listing Issues
+
+```bash
+slomo issues
+```
+
+By default this shows only open issues. Each row in the output represents one crash group:
+
+```console
+ ID        TITLE                              CATEGORY         COUNT
+ SM-0001   TypeError in checkout()            Null Reference   5
+ SM-0002   KeyError in load_config()          Key Error        2
+ SM-0003   ConnectionError in sync_orders()   Network          8
+```
+
+| Column     | What it means |
+|------------|---------------|
+| **ID**     | The stable issue identifier (`SM-xxxx`). Use this in every other command. |
+| **TITLE**  | A short description generated from the exception type and the failing function. |
+| **CATEGORY** | The class of error Slomo detected — e.g. `Null Reference`, `Network`, `Key Error`. |
+| **COUNT**  | How many individual incidents (occurrences) have been recorded under this issue. |
+
+### Filtering the list
+
+```bash
+# Show only resolved issues
+slomo issues --status resolved
+
+# Show only issues in a specific category
+slomo issues --category "Null Reference"
+
+# Show everything — open and resolved
+slomo issues --all
+```
+
+<Tip>
+  Combine `--all` with `--category` to compare how many issues in a given category have been fixed versus how many are still open.
+</Tip>
+
+---
+
+## Reading the Issue Detail View
+
+```bash
+slomo issue show SM-0001
+```
+
+```console
+Title         TypeError in checkout()
+Category      Null Reference
+Severity      high
+Status        open
+Stability     recurring
+Occurrences   5  (5 unhandled) across 5 session(s)
+First seen    2025-06-10 13:01:14
+Last seen     2025-06-10 13:04:52
+
+Latest traceback:
+  File "app.py", line 14, in checkout
+    qty = inventory["qty"]
+TypeError: 'NoneType' object is not subscriptable
+
+Related issues: SM-0005
+```
+
+Key fields to pay attention to:
+
+| Field          | What it tells you |
+|----------------|-------------------|
+| **Severity**   | `low`, `medium`, or `high` — how disruptive the crash is. |
+| **Status**     | `open` or `resolved`. |
+| **Stability**  | `new`, `recurring`, or `regressed`. A `regressed` issue was previously resolved but has started crashing again. |
+| **Occurrences**| Total incident count and how many were unhandled (i.e. the exception propagated all the way up). |
+| **First/Last seen** | Helps you understand whether this is an old bug or something that just appeared. |
+| **Related issues** | Other crash groups that Slomo thinks may share a common cause. |
+
+---
+
+## Inspecting Every Occurrence
+
+To see every individual incident recorded under an issue — not just the latest:
+
+```bash
+slomo issue occurrences SM-0001
+```
+
+```console
+ #   WHEN                     SESSION          UNHANDLED   MESSAGE
+ 1   2025-06-10 13:01:14      sess_a1b2c3d4   yes         'NoneType' object is not subscriptable
+ 2   2025-06-10 13:02:03      sess_e5f6a7b8   yes         'NoneType' object is not subscriptable
+ 3   2025-06-10 13:02:58      sess_c9d0e1f2   yes         'NoneType' object is not subscriptable
+```
+
+Use the session IDs here to jump directly into a specific incident with `slomo replay <SESSION_ID>` or `slomo session show <SESSION_ID>`.
+
+---
+
+## Diagnosing Root Cause with `slomo doctor`
+
+`slomo doctor` is the fastest way to understand *why* a crash happened. It analyses every occurrence, correlates the events that appeared just before the error, and produces a structured diagnosis.
+
+```bash
+slomo doctor SM-0001
+```
+
+```console
+Category              Null Reference  (95% confidence)
+Severity              high
+Status                open
+Stability             recurring
+Occurrences           5  (5 unhandled) across 5 session(s)
+First seen            2025-06-10 13:01:14
+Last seen             2025-06-10 13:04:52
+
+Likely root cause     TypeError raised in checkout() at app.py:14.
+                      Variable 'inventory' was None at the crash site.
+First bad function    checkout()
+First bad variable    inventory
+Suggested fix         Guard against None before the failing access at app.py:14
+
+Context just before the crash:
+  13:04:52.133 sql.query   SELECT sku, qty FROM inventory WHERE sku = ?
+  13:04:52.133 sql.result  0 rows, 9µs
+```
+
+Here is what each section tells you:
+
+| Section | How to use it |
+|---------|---------------|
+| **Likely root cause** | A plain-English summary of the exception, the function it occurred in, and the source location. |
+| **First bad function** | The function Slomo pinpoints as the origin of the problem — not just where the exception was caught. |
+| **First bad variable** | The specific variable that held a bad value at crash time. Start your fix here. |
+| **Suggested fix** | A concrete code-level suggestion. Not always perfect, but it's a fast starting point. |
+| **Context just before the crash** | A chronological list of events (SQL queries, HTTP calls, log lines) that fired in the moments before the crash. In the example above, the SQL query returned 0 rows — meaning `inventory` was never populated. |
+
+<Note>
+  `slomo doctor` applies heuristics; its confidence score reflects how strongly the available evidence points to a single cause. For lower-confidence diagnoses, also check `slomo issue occurrences` to look for patterns across incidents.
+</Note>
+
+For a quick one-paragraph summary without the full structured output, use:
+
+```bash
+slomo issue explain SM-0001
+```
+
+---
+
+## Navigating Sessions
+
+To see every session in which a given issue appeared:
+
+```bash
+slomo issue sessions SM-0001
+```
+
+To view the timeline of events in the session that produced the *latest* occurrence of an issue:
+
+```bash
+slomo issue timeline SM-0001
+```
+
+This is a quick way to get a chronological view without opening the full replay TUI. For interactive step-through, use `slomo replay SM-0001` instead.
+
+---
+
+## Resolving Issues and Tracking Regressions
+
+Once you have deployed a fix, mark the issue resolved:
+
+```bash
+slomo issue resolve SM-0001
+```
+
+Slomo sets the status to `resolved` and records the timestamp. If the same crash fingerprint appears again in a future session, Slomo **automatically reopens the issue** and sets its stability to `regressed` — you will see it in `slomo issues` the next time you run it.
+
+To manually reopen an issue you resolved by mistake:
+
+```bash
+slomo issue reopen SM-0001
+```
+
+<Tip>
+  Run `slomo issues --status resolved` after a release to confirm that your fixes held. Any issue that has flipped back to `open` with stability `regressed` needs immediate attention.
+</Tip>
+
+---
+
+## Project Health at a Glance
+
+Before diving into individual issues, get a high-level summary of your project's health:
+
+```bash
+slomo stats
+```
+
+```console
+Sessions        42  (7 crashed)
+Events          18,340
+Issues (open)   3
+Storage         4.2 MB
+
+Category breakdown:
+  Null Reference   2
+  Network          1
+```
+
+Use `--rebuild-index` if you suspect the issue counts are out of sync — for example, after manually editing the data store or migrating sessions from another machine:
+
+```bash
+slomo stats --rebuild-index
+```

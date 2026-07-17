@@ -1,0 +1,190 @@
+---
+title: "Recording Workers, Threads, and Async Pipelines"
+sidebarTitle: "Workers & Async"
+description: "Slomo captures crashes in worker threads, forked processes, and asyncio coroutines automatically. Learn how multi-process and async recording works."
+---
+
+Modern Python applications rarely run in a single thread. Web servers spawn thread pools, data pipelines fork worker processes, and async frameworks schedule thousands of concurrent coroutines. Slomo is built to follow your code into all of these execution contexts — in most cases automatically, and with a small amount of setup for the cases that need it.
+
+## Worker Threads
+
+A single `slomo.enable()` call in the main thread covers every worker thread in the same process. You do not need to call `enable()` inside each thread.
+
+```python
+import threading
+import slomo
+
+slomo.enable()  # covers all threads in this process
+
+def worker(job_id: str):
+    # this function is auto-traced even though it runs in a thread
+    process_job(job_id)
+
+threads = [threading.Thread(target=worker, args=(jid,)) for jid in job_ids]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+```
+
+Unhandled exceptions in worker threads are captured via Python's `threading.excepthook`. If `worker()` raises an exception that isn't caught inside the thread, Slomo records it — including the full call graph, arguments, and local variables — and surfaces it in `slomo issues`.
+
+<Note>
+  `threading.excepthook` was introduced in Python 3.8. On older versions, Slomo falls back to wrapping `Thread.run` to catch exceptions before they are silently dropped.
+</Note>
+
+## asyncio
+
+`@track` works natively on async functions and async generators. Auto-tracing also covers `async def` coroutines the same way it covers synchronous functions — `sys.monitoring` fires for both.
+
+```python
+import asyncio
+from slomo import track
+import slomo
+
+slomo.enable()
+
+@track
+async def fetch_user(user_id: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"/users/{user_id}")
+        return response.json()
+
+@track
+async def enrich_users(user_ids: list[str]):
+    tasks = [fetch_user(uid) for uid in user_ids]
+    return await asyncio.gather(*tasks)
+```
+
+Async generators are also supported:
+
+```python
+from slomo import track
+
+@track
+async def stream_events(topic: str):
+    async for message in broker.subscribe(topic):
+        yield message
+```
+
+<Tip>
+  With auto-tracing enabled you typically don't need to add `@track` to every async function. Use `@track` when you want guaranteed capture for a specific coroutine regardless of auto-trace configuration — for example, in a library that might be used outside your project root.
+</Tip>
+
+## Forked Processes
+
+When your application forks a child process (via `os.fork()`, `multiprocessing`, or a pre-forking server like Gunicorn), Slomo automatically starts a fresh session in the child. The child session is labelled `forked_from` with the parent's session identifier, so you can trace a request or job across both the parent and the child in `slomo replay`.
+
+```python
+import os
+import slomo
+
+slomo.enable()  # parent session starts here
+
+pid = os.fork()
+if pid == 0:
+    # child process — Slomo has already started a new session automatically
+    do_child_work()
+    os._exit(0)
+```
+
+For `multiprocessing`-based pools, the fork happens inside the pool machinery. If you use `spawn` or `forkserver` start methods instead of `fork`, the child process does not inherit the parent's memory, so you need to call `enable()` explicitly in the worker initialiser:
+
+```python
+import multiprocessing
+import slomo
+
+def worker_init():
+    slomo.enable()  # [!code ++]
+
+def process_job(job):
+    ...
+
+if __name__ == "__main__":
+    slomo.enable()
+    with multiprocessing.Pool(
+        processes=4,
+        initializer=worker_init,  # [!code ++]
+    ) as pool:
+        pool.map(process_job, jobs)
+```
+
+## Long-Running Worker Pools
+
+For worker processes that stay alive across many jobs — a Celery worker, a custom job consumer, or a thread-pool executor — you may want to start a fresh Slomo session for each job rather than accumulating the entire process lifetime into one session. Use `disable()` followed by `enable()` between jobs:
+
+```python
+import slomo
+
+def run_worker_loop(queue):
+    while True:
+        job = queue.get()
+
+        slomo.enable(labels={"job_id": job.id, "queue": job.queue_name})  # [!code ++]
+        try:
+            execute_job(job)
+        finally:
+            slomo.flush()    # [!code ++]
+            slomo.disable()  # [!code ++]
+```
+
+This gives you one Slomo session per job, each labelled with the job's identifier, which makes it far easier to find the recording for a specific failed job later.
+
+<Warning>
+  Always call `slomo.flush()` before `slomo.disable()` in worker loops. Without it, the last few buffered events for a job may not reach disk before the session is closed.
+</Warning>
+
+## Celery Workers
+
+Celery workers are long-running processes that execute tasks in separate threads or processes depending on configuration. Call `slomo.enable()` in Celery's `worker_process_init` signal to initialise a session when each worker process starts:
+
+```python
+# myapp/celery.py
+from celery import Celery
+from celery.signals import worker_process_init
+import slomo
+
+app = Celery("myapp")
+
+@worker_process_init.connect
+def init_slomo(**kwargs):
+    slomo.enable()  # [!code ++]
+```
+
+For per-task sessions, use Celery's `task_prerun` and `task_postrun` signals instead:
+
+```python
+from celery.signals import task_prerun, task_postrun
+import slomo
+
+@task_prerun.connect
+def start_slomo(task_id, task, *args, **kwargs):
+    slomo.enable(labels={"task_id": task_id, "task_name": task.name})  # [!code ++]
+
+@task_postrun.connect
+def stop_slomo(*args, **kwargs):
+    slomo.flush()    # [!code ++]
+    slomo.disable()  # [!code ++]
+```
+
+## FastAPI / Starlette Background Tasks
+
+Background tasks dispatched via FastAPI's `BackgroundTasks` run in the same process as the server. Because `slomo.enable()` was already called at startup, these tasks are auto-traced and any unhandled exceptions they raise are captured automatically — no additional setup is needed.
+
+```python
+from fastapi import FastAPI, BackgroundTasks
+import slomo
+
+slomo.enable()
+app = FastAPI()
+
+def heavy_post_processing(order_id: str):
+    # auto-traced; unhandled exceptions captured automatically
+    run_fraud_check(order_id)
+    send_confirmation(order_id)
+
+@app.post("/orders")
+async def create_order(background_tasks: BackgroundTasks, order_id: str):
+    background_tasks.add_task(heavy_post_processing, order_id)
+    return {"status": "queued"}
+```

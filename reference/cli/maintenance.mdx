@@ -1,0 +1,107 @@
+---
+title: "slomo stats and prune: Storage Management"
+sidebarTitle: "Maintenance"
+description: "slomo stats shows totals and storage usage. slomo prune deletes old sessions beyond the retention limit. Use --rebuild-index to fix a corrupted issue index."
+---
+
+`slomo stats` and `slomo prune` are the two commands for understanding and managing Slomo's local storage. Run `slomo stats` to see how many sessions and issues are on disk and how much space they occupy. Run `slomo prune` when you want to reclaim space by deleting old sessions.
+
+---
+
+## slomo stats
+
+`slomo stats` prints a summary of everything Slomo has recorded, broken down by sessions, events, issues, and storage footprint.
+
+```bash
+slomo stats [--rebuild-index]
+```
+
+| Flag | Description |
+|---|---|
+| `--rebuild-index` | Drop the SQLite issue index and rebuild it from the raw JSONL session files |
+
+### Example output
+
+```console
+$ slomo stats
+
+sessions      45  (3 crashed)
+events        12048
+issues        7  (3 open)
+storage       2.1 MB in .slomo/
+
+Issues by category:
+  ConnectionRefusedError    3
+  KeyError                  2
+  TimeoutError              1
+  ValueError                1
+```
+
+| Field | Meaning |
+|---|---|
+| `sessions` | Total recorded sessions; the parenthetical shows how many ended with an unhandled exception |
+| `events` | Total events across all sessions |
+| `issues` | Unique issues fingerprinted by Slomo; the parenthetical shows how many are still marked open |
+| `storage` | Total disk space used by the `.slomo/` directory |
+
+The issues breakdown at the bottom groups issues by their exception or event category, so you can spot recurring problem types at a glance.
+
+### --rebuild-index
+
+The `--rebuild-index` flag drops the SQLite index that Slomo uses to look up issues and reconstructs it by replaying all JSONL session files on disk:
+
+```bash
+slomo stats --rebuild-index
+```
+
+Use this flag when:
+
+- The issue index appears out of sync with what `slomo replay` or `slomo timeline` shows inside session files.
+- You have edited `.slomo/` JSONL files manually and want Slomo to pick up your changes.
+- The `.slomo/index.db` file is corrupted and commands like `slomo search` return unexpected results.
+
+Rebuilding the index does not delete any session data. It reads the raw JSONL files and rewrites the index from scratch, so it is safe to run at any time.
+
+<Note>
+Rebuilding the index can take a few seconds on a large `.slomo/` directory with thousands of sessions. Slomo prints a progress indicator while it works.
+</Note>
+
+---
+
+## slomo prune
+
+`slomo prune` deletes the oldest sessions on disk, keeping only the most recent N. This is the primary way to free disk space when Slomo's storage grows beyond what you need.
+
+```bash
+slomo prune [--keep N] [-y]
+```
+
+| Flag | Description |
+|---|---|
+| `--keep` / `-k N` | Keep the N most recent sessions (overrides the config value for this run) |
+| `-y` | Skip the confirmation prompt and prune immediately |
+
+### Retention limit
+
+By default, Slomo's retention limit is controlled by `retention_max_sessions` in your configuration file (default: `200`). When you run `slomo prune` without `--keep`, Slomo deletes every session beyond that limit, oldest first:
+
+```bash
+# Prune using the configured limit (retention_max_sessions)
+slomo prune
+
+# Keep only the 50 most recent sessions, regardless of config
+slomo prune --keep 50
+
+# Same, but skip the confirmation prompt (useful in scripts)
+slomo prune --keep 50 -y
+```
+
+Before deleting anything, Slomo lists the sessions it intends to remove and asks you to confirm, unless you pass `-y`.
+
+### Running sessions are never pruned
+
+Slomo never deletes a session that is currently active. If a session is still recording when you run `slomo prune`, it is excluded from deletion regardless of its age or the retention limit. Once the session ends, it becomes eligible for pruning on the next run.
+
+<Tip>
+**Recommended maintenance routine:** run `slomo stats` periodically to monitor storage growth, and add `slomo prune -y` to a cron job or CI cleanup step if you want automatic enforcement of the retention limit. For development machines, a limit of 50–100 sessions is usually plenty; increase it for staging environments where you want longer history.
+</Tip>

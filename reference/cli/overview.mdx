@@ -1,0 +1,93 @@
+---
+title: "Slomo CLI Reference Overview"
+sidebarTitle: "Overview"
+description: "Complete reference for the slomo command-line interface: sessions, issues, doctor, replay, timeline, search, data views, export, and maintenance commands."
+---
+
+The `slomo` CLI is the primary way to explore everything Slomo records about your Python application. Once your app has run at least once with the Slomo recorder active, you can use the CLI to list sessions, drill into individual events, triage grouped crash reports, and get heuristic diagnoses — all from the terminal without leaving your workflow.
+
+## Interactive shell
+
+Running `slomo` with no subcommand in a TTY opens an interactive REPL with persistent history and tab completion. Every subcommand described in this reference works inside the shell, so you can move quickly between sessions, issues, and doctor output without retyping the binary name.
+
+```bash
+slomo
+```
+
+```console
+slomo> sessions
+slomo> issue show SM-3a9f1b2c
+slomo> doctor SM-3a9f1b2c
+slomo> exit
+```
+
+Exit the shell at any time with `Ctrl-D` or by typing `exit`.
+
+<Note>
+The interactive shell is only launched when `slomo` is run with no arguments **and** its stdout is connected to a TTY. In scripts or CI pipelines, always pass a subcommand directly so the process exits cleanly.
+</Note>
+
+## Project setup — `slomo init`
+
+`slomo init` creates the `.slomo/` directory and a commented `config.toml` inside your project, and prints the two lines you need to add to your application entrypoint.
+
+```bash
+slomo init [DIRECTORY]
+```
+
+| Argument | Description |
+|---|---|
+| `DIRECTORY` | Path to the project root. Defaults to the current directory. |
+
+Running `slomo init` is optional — calling `slomo.enable()` in your application creates the same directory structure automatically on first run. Use `slomo init` when you want to inspect or customise the configuration before the first recording.
+
+```console
+$ slomo init
+Created .slomo/config.toml
+
+Add these two lines to your application entrypoint:
+
+    import slomo
+    slomo.enable()
+```
+
+## Command reference
+
+The table below lists every subcommand group and what each one does. Follow the links to the dedicated reference pages for full syntax, flag tables, and example output.
+
+| Command | What it does |
+|---|---|
+| `slomo init [DIR]` | Create `.slomo/` config in a project directory |
+| [`slomo sessions`](/reference/cli/sessions) | List all recorded sessions, newest last |
+| [`slomo session show <ID>`](/reference/cli/sessions) | Session metadata, event breakdown, recent errors |
+| [`slomo session inspect <ID>`](/reference/cli/sessions) | Span tree of tracked function calls with durations |
+| [`slomo session delete <ID>`](/reference/cli/sessions) | Delete a recorded session |
+| [`slomo issues`](/reference/cli/issues) | List crash groups (open by default) |
+| [`slomo issue show <ID>`](/reference/cli/issues) | Full issue detail: category, severity, traceback |
+| [`slomo issue occurrences <ID>`](/reference/cli/issues) | Every recorded incident for an issue |
+| [`slomo issue timeline <ID>`](/reference/cli/issues) | Event timeline for the latest incident |
+| [`slomo issue sessions <ID>`](/reference/cli/issues) | All sessions affected by an issue |
+| [`slomo issue resolve <ID>`](/reference/cli/issues) | Mark an issue resolved |
+| [`slomo issue reopen <ID>`](/reference/cli/issues) | Reopen a resolved issue |
+| [`slomo issue explain <ID>`](/reference/cli/issues) | One-paragraph plain-language explanation |
+| [`slomo doctor <ID>`](/reference/cli/doctor) | Heuristic root-cause diagnosis with suggested fix |
+
+## Issue ID format
+
+Issues are identified by IDs in the format `SM-xxxxxxxx` — the prefix `SM` followed by eight hexadecimal characters, for example `SM-3a9f1b2c`.
+
+You can reference any issue or session by a **unique prefix** of its full ID. For example, if `SM-3a9f1b2c` is the only issue whose ID starts with `SM-3a`, all of the following are equivalent:
+
+```bash
+slomo doctor SM-3a9f1b2c
+slomo doctor SM-3a9f
+slomo doctor SM-3a
+```
+
+Slomo will tell you if a prefix matches more than one ID and ask you to be more specific.
+
+## Related pages
+
+- [sessions reference](/reference/cli/sessions) — listing, inspecting, and deleting recordings
+- [issues reference](/reference/cli/issues) — managing and triaging grouped crash reports
+- [doctor reference](/reference/cli/doctor) — heuristic root-cause diagnosis

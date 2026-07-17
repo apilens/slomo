@@ -1,0 +1,193 @@
+---
+title: "Integrating Slomo with FastAPI, Flask, and Django"
+sidebarTitle: "Web Frameworks"
+description: "Add Slomo to FastAPI, Flask, or Django apps with a single enable() call. Auto-tracing captures 500 errors, request context, and background task failures automatically."
+---
+
+Adding Slomo to a web application is a single function call, but there's an important detail to understand before you do it: web frameworks intercept exceptions. FastAPI, Flask, and Django all catch unhandled exceptions inside route handlers and convert them into HTTP 500 responses *before* Python's `sys.excepthook` ever fires. If Slomo relied on `sys.excepthook` to detect crashes, it would miss every one of them.
+
+It doesn't. Slomo's auto-tracing engine operates at the `sys.monitoring` level — it sees the exception the moment it escapes your handler function, before the framework's exception middleware has a chance to swallow it. That means every unhandled exception in a route handler lands in `slomo issues` with the full call graph, argument values, and the SQL and HTTP calls that preceded it, no extra code required.
+
+## FastAPI
+
+Call `slomo.enable()` at module level, before your `FastAPI()` instance is created. That's all that's required.
+
+```python
+from fastapi import FastAPI
+import slomo
+
+slomo.enable()  # [!code ++]
+app = FastAPI()
+
+@app.get("/checkout/{sku}")
+async def checkout(sku: str):
+    ...
+```
+
+### Using the lifespan context manager
+
+For applications that need clean startup and shutdown — connection pools, background schedulers, graceful drain — use FastAPI's `lifespan` parameter to bracket Slomo around your app's lifetime:
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+import slomo
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    slomo.enable()   # [!code ++]
+    yield
+    slomo.disable()  # [!code ++]
+
+app = FastAPI(lifespan=lifespan)
+```
+
+`slomo.disable()` finalises the session and flushes any buffered events to disk before the process exits.
+
+### Background tasks
+
+FastAPI's `BackgroundTask` and `BackgroundTasks` run after the response is sent, in the same process. If a background task raises an unhandled exception, Slomo captures it automatically — no extra setup needed:
+
+```python
+from fastapi import FastAPI, BackgroundTasks
+import slomo
+
+slomo.enable()
+app = FastAPI()
+
+def send_confirmation_email(order_id: str):
+    # an unhandled exception here is captured by Slomo
+    ...
+
+@app.post("/orders")
+async def create_order(background_tasks: BackgroundTasks):
+    background_tasks.add_task(send_confirmation_email, order_id="ord_123")
+    return {"status": "accepted"}
+```
+
+### Extra detail with `@track`
+
+Auto-tracing records every function call inside your project root, but route handlers are a natural place to add `@track` when you want guaranteed argument capture even if the auto-trace config changes:
+
+```python
+from fastapi import FastAPI
+from slomo import track
+import slomo
+
+slomo.enable()
+app = FastAPI()
+
+@app.get("/checkout/{sku}")
+@track  # [!code ++]
+async def checkout(sku: str, quantity: int = 1):
+    ...
+```
+
+<Note>
+  Decorator order matters. Put `@track` *below* the framework route decorator (`@app.get`, `@app.post`, etc.) so it wraps the handler function directly.
+</Note>
+
+## Flask
+
+Call `slomo.enable()` at the top of your application module, before the `Flask()` instance:
+
+```python
+from flask import Flask
+import slomo
+
+slomo.enable()  # [!code ++]
+app = Flask(__name__)
+
+@app.route("/checkout/<sku>")
+def checkout(sku):
+    ...
+```
+
+For applications using the [Application Factory pattern](https://flask.palletsprojects.com/en/latest/patterns/appfactories/), call `enable()` inside the factory function before returning the app:
+
+```python
+from flask import Flask
+import slomo
+
+def create_app():
+    slomo.enable()  # [!code ++]
+    app = Flask(__name__)
+
+    from .routes import checkout_bp
+    app.register_blueprint(checkout_bp)
+
+    return app
+```
+
+## Django
+
+In a Django project, the right place to call `slomo.enable()` is in `wsgi.py` (or `asgi.py` for async deployments), after Django's setup but before the WSGI handler is created:
+
+```python
+# myproject/wsgi.py
+import os
+import django
+import slomo
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
+django.setup()
+
+slomo.enable()  # [!code ++]
+
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+```
+
+For ASGI deployments:
+
+```python
+# myproject/asgi.py
+import os
+import django
+import slomo
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
+django.setup()
+
+slomo.enable()  # [!code ++]
+
+from django.core.asgi import get_asgi_application
+application = get_asgi_application()
+```
+
+<Tip>
+  Avoid calling `slomo.enable()` inside `settings.py`. Django imports settings before the application process is fully initialised, which can cause the project root detection to resolve to the wrong directory. Use `wsgi.py` or `asgi.py` instead.
+</Tip>
+
+## Session Labels
+
+`slomo.enable()` accepts a `labels` dictionary that tags the entire recording session with static metadata. This is useful for identifying which environment or deployment a session came from:
+
+```python
+import os
+import slomo
+
+slomo.enable(labels={
+    "env": os.environ.get("APP_ENV", "development"),
+    "version": os.environ.get("APP_VERSION", "unknown"),
+    "region": os.environ.get("AWS_REGION", "local"),
+})
+```
+
+<Warning>
+  Labels are **per-session**, not per-request. They are set once when `enable()` is called and apply to everything recorded in that process for its entire lifetime. Do not use `labels` to attach per-request identifiers like request IDs or user IDs — use `slomo.event()` or `slomo.snapshot()` inside the handler for request-scoped data instead.
+</Warning>
+
+```python
+from fastapi import FastAPI, Request
+import slomo
+
+slomo.enable()
+app = FastAPI()
+
+@app.get("/checkout/{sku}")
+async def checkout(request: Request, sku: str):
+    # Attach request-scoped context as an event, not a label
+    slomo.event("request.started", request_id=request.headers.get("x-request-id"), sku=sku)  # [!code ++]
+    ...
+```

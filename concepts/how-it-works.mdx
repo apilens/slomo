@@ -1,0 +1,111 @@
+---
+title: "How Slomo Records Your Application"
+sidebarTitle: "How It Works"
+description: "Understand how Slomo hooks into your Python process, captures events with near-zero overhead, and writes a crash-safe local recording without any external services."
+---
+
+When you call `slomo.enable()`, Slomo wires itself into your running Python process in under 5 milliseconds and starts capturing a complete picture of what your application does — function calls, exceptions, HTTP requests, SQL queries, and log records — writing everything to local files with no external service involved. This page explains each stage of that pipeline so you can reason about overhead, safety, and what ends up on disk.
+
+## The Recording Pipeline
+
+From the moment `enable()` returns to the moment your process exits, data flows through four stages:
+
+1. **Hook installation** — Slomo registers listeners with Python's monitoring API and patches third-party libraries.
+2. **Event production** — Your application runs normally; hooks fire and emit structured event objects onto an internal queue.
+3. **Background flush** — A dedicated writer thread drains the queue in batches and appends serialized JSON lines to disk.
+4. **Session finalization** — On clean exit or crash, Slomo writes final session metadata and fsyncs open files.
+
+```
+your code
+   │
+   ▼
+[ sys.monitoring + library hooks ]
+   │  emit events (non-blocking)
+   ▼
+[ in-process lock-free queue ]
+   │  drained by background thread
+   ▼
+[ background writer ]
+   │  batched appends
+   ▼
+.slomo/sessions/<id>/timeline.jsonl
+```
+
+<Note>
+`enable()` returns before any background threads are fully warm. The queue absorbs the first burst of events, so your application's startup path is never blocked waiting for disk I/O.
+</Note>
+
+## Function Tracing with `sys.monitoring`
+
+Slomo uses Python's built-in `sys.monitoring` API, introduced in [PEP 669](https://peps.python.org/pep-0669/) and available in the standard library from Python 3.12 onward. This is the same low-level hook mechanism used by coverage tools and profilers, but Slomo uses it selectively to keep overhead negligible.
+
+**How the filtering works:**
+
+- The first time a code object from the standard library or a third-party package is encountered, Slomo disables monitoring on that object permanently.
+- Only files that live under your project's root directory (or directories you explicitly include) are traced beyond the first hit.
+- The result is that hot inner loops in `urllib3`, `sqlalchemy`, or `json` never pay any per-call cost after their initial classification.
+
+Because `sys.monitoring` operates at the interpreter level rather than through `settrace`, it imposes far lower overhead than classic tracing approaches — typically under 3% on CPU-bound workloads, and unmeasurable on I/O-bound ones.
+
+<Info>
+`sys.monitoring` is only available on Python 3.12+. On earlier versions, Slomo falls back to a `sys.settrace`-based implementation with the same filtering logic, at slightly higher overhead.
+</Info>
+
+## Hook Types
+
+Beyond function call tracing, Slomo installs thin patches at well-known integration points:
+
+| Hook | What it captures | Mechanism |
+|---|---|---|
+| **Auto-trace** | Every function enter/exit in your project code | `sys.monitoring` (PEP 669) |
+| **HTTP** | Outbound requests and responses (method, URL, status, duration) | Monkey-patching `requests` and `httpx` |
+| **SQL** | Queries and result row counts (duration, statement) | `sqlite3` module hooks + SQLAlchemy event listeners |
+| **Logging** | `WARNING`-level and above log records | `logging.Handler` subclass attached to the root logger |
+| **Exceptions** | Exceptions that escape a tracked function | `sys.monitoring` exception events |
+| **Unhandled errors** | Uncaught exceptions on any thread, unraisable exceptions | `sys.excepthook`, `threading.excepthook`, `sys.unraisablehook` |
+
+Each hook emits a typed event onto the shared queue. The hooks themselves do minimal work — they capture the data needed for the event payload and return immediately, keeping your application's hot path clear.
+
+<Tip>
+You don't need to configure which hooks are active. Slomo detects whether `requests`, `httpx`, or SQLAlchemy are importable at `enable()` time and installs the corresponding hooks automatically.
+</Tip>
+
+## The Write Pipeline
+
+Keeping I/O off your application's threads is central to Slomo's design. Here's how writes are handled:
+
+**Lock-free queue.** Event objects are enqueued using a thread-safe, non-blocking data structure. If the queue is full (a rare condition under extreme event volume), events are dropped with a counter increment rather than blocking your thread.
+
+**Background flush.** A single daemon thread wakes periodically and drains the queue, serializing events to JSON and appending them to `timeline.jsonl`. Batching amortizes the cost of `write()` syscalls across many events.
+
+**Crash path fsync.** When Slomo's `sys.excepthook` fires — meaning the process is about to exit due to an unhandled exception — it flushes the queue synchronously and calls `fsync()` on the open file handles before they close. This ensures crash events are durable even if the OS would otherwise buffer them.
+
+**Append-only JSONL.** Every write is an append. There are no in-place updates, no index files to corrupt, and no locks needed at the file level. Each line is a complete, self-contained JSON object, so a partial final line (caused by a `kill -9`) is simply ignored by the tolerant JSONL reader in the CLI.
+
+<Warning>
+A `kill -9` bypass the crash-path fsync because the process is terminated instantly by the OS. You may lose the last batch of events (up to one flush interval, typically a few hundred milliseconds). All previously flushed events are safe.
+</Warning>
+
+## Multi-Process Safety
+
+Slomo is designed to work correctly when your application spawns or forks child processes.
+
+**One session per process.** Each process that calls `slomo.enable()` — whether directly or via a forked child — gets its own session directory under `.slomo/sessions/`. Sessions never share file handles, so concurrent writes from multiple processes are safe by construction.
+
+**Fork awareness.** When a child process is created via `os.fork()`, Slomo detects the fork in the child using `os.register_at_fork()` and automatically starts a new session. The child session's metadata includes a `forked_from` label pointing to the parent session ID, so you can reconstruct the process tree when reviewing recordings.
+
+**Multiprocessing and workers.** If you use `multiprocessing` or a framework that pre-forks workers (such as Gunicorn), each worker records its own independent session. The parent process records its own session too, giving you a complete view of the entire application.
+
+## What Lives on Disk
+
+After a session completes, its directory looks like this:
+
+```
+.slomo/sessions/20240912T143201-a3f7b2c1/
+  metadata.json      # session id, argv, host, pid, status, event_count
+  timeline.jsonl     # one event per line, append-only
+  snapshots/         # variable captures (explicit or exception-triggered)
+  attachments/       # any files you attach via the API
+```
+
+The `timeline.jsonl` file is the authoritative record. Everything the CLI shows you — call trees, HTTP timelines, SQL traces, error details — is derived by reading and interpreting those lines. Nothing is stored in a database that could become inconsistent with the raw files (the issues index is a separate, rebuildable cache — see [Issues](/concepts/issues)).

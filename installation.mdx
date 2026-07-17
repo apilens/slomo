@@ -47,7 +47,7 @@ Confirm that Slomo is installed and check its version:
 python -c "import slomo; print(slomo.__version__)"
 ```
 
-You should see a version string printed to stdout, for example `0.1.1`. You can also confirm the CLI is on your `PATH`:
+You should see a version string printed to stdout, for example `0.1.0`. You can also confirm the CLI is on your `PATH`:
 
 ```bash
 slomo --version
@@ -77,28 +77,30 @@ Running `slomo init` in your project directory creates a `.slomo/config.toml` fi
 slomo init
 ```
 
+```
+Initialized .slomo/config.toml
+```
+
 This step is entirely optional. Slomo works out of the box without any configuration. Use `slomo init` when you want to customize recording behavior — for example, to exclude specific modules, change the storage path, or adjust log-level thresholds — before your first run.
 
 ## The `.slomo/` directory
 
-The first time you call `slomo.enable()` in your application, Slomo automatically creates a `.slomo/` directory in your current working directory. All session recordings are stored there as append-only JSONL files.
+The first time you call `slomo.enable()` in your application, Slomo automatically creates a `.slomo/` directory in your current working directory (or the path configured in `config.toml`). All session recordings are stored there as append-only JSONL files.
 
 ```
 .slomo/
 ├── config.toml        # present only if you ran `slomo init`
 └── sessions/
-    ├── <session-id>/
-    │   ├── metadata.json
-    │   └── timeline.jsonl
+    ├── <session-id>.jsonl
     └── ...
 ```
 
 <Note>
-  Slomo auto-manages a `.gitignore` inside `.slomo/` so recordings are excluded from version control by default. The `config.toml` file is safe to commit.
+  Add `.slomo/sessions/` to your `.gitignore` if you don't want session recordings committed to version control. The `config.toml` file is safe to commit.
 </Note>
 
 ## Next steps
 
 - **[Quickstart](/quickstart)** — add Slomo to an app and explore your first crash recording
-- **[Core Concepts](/concepts/how-it-works)** — learn how `sys.monitoring` instrumentation works
+- **[Core Concepts](/concepts/how-it-works)** — learn how `sys.monitoring` instrumentation works under the hood
 - **[CLI Reference](/reference/cli/overview)** — full documentation for `slomo issues`, `slomo doctor`, `slomo replay`, and more

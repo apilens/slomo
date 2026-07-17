@@ -1,0 +1,150 @@
+---
+title: "Redacting Secrets and Sensitive Data in Slomo"
+sidebarTitle: "Redaction"
+description: "Slomo scrubs passwords, tokens, API keys, and other secrets from captured data at record time — before anything touches disk. Add custom keys and patterns in config.toml."
+---
+
+Slomo records function arguments, local variables, HTTP payloads, and SQL query parameters — exactly the data you need to diagnose a bug, but also exactly the data that might contain secrets. To keep sensitive values out of your recordings, Slomo runs every captured value through its redaction engine *before* writing anything to disk. If a value is matched, it is replaced with the string `"[REDACTED]"` in the timeline. The raw value is never written, never buffered to disk, and never transmitted anywhere.
+
+## How Redaction Works
+
+Redaction happens at capture time, in the same call that serialises the value for storage. There is no post-processing step and no second pass — the unredacted value exists only in memory for the duration of that operation.
+
+Slomo uses two complementary strategies:
+
+1. **Key-based redaction** — if the name of a variable, dictionary key, function argument, or HTTP header matches a known sensitive name, its value is redacted regardless of what the value looks like.
+2. **Pattern-based redaction** — if the string representation of a value matches a known secret pattern (a JWT, an AWS access key, a credit card number, a high-entropy random string), it is redacted even if the key name is innocuous.
+
+## Built-in Redacted Key Names
+
+The following key names are redacted by default. Matching is case-insensitive and applies to function argument names, dictionary keys, HTTP header names, and SQL parameter names.
+
+```
+password         token            authorization    cookie
+api_key          secret           private_key      access_token
+refresh_token    client_secret    passwd           pwd
+auth             bearer           credential       ssn
+card_number      cvv              pin
+```
+
+For example, if your function has a parameter called `api_key`, its value will appear as `[REDACTED]` in the timeline even if auto-tracing records the call:
+
+```python
+def connect_to_stripe(api_key: str, idempotency_key: str):
+    # api_key → [REDACTED] in the Slomo timeline
+    # idempotency_key → recorded as-is (not in the default list)
+    ...
+```
+
+## Built-in Pattern Detection
+
+Slomo also scans string values for known secret shapes, regardless of the key name they're stored under:
+
+| Pattern | Example |
+|---|---|
+| **JWT** (Bearer tokens starting with `eyJ`) | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+| **AWS access key** (starts with `AKIA`) | `AKIAIOSFODNN7EXAMPLE` |
+| **Luhn-valid card numbers** | `4111 1111 1111 1111` |
+| **High-entropy strings** | Random-looking base64 or hex strings of sufficient length |
+
+Pattern detection catches secrets that leak through generic keys like `value`, `data`, or `result` — places where key-based redaction would not fire.
+
+## Adding Custom Redaction Rules
+
+Define custom rules in `.slomo/config.toml` under the `[redaction]` section.
+
+### Custom key names
+
+Add key names that are specific to your application with `extra_keys`:
+
+```toml
+[redaction]
+extra_keys = ["internal_id", "user_token", "account_number", "employee_id"]
+```
+
+These are merged with the built-in list. Matching is still case-insensitive.
+
+### Custom regex patterns
+
+Add `extra_patterns` to redact values that match a regular expression. This is useful for internal identifier formats, proprietary token schemes, or any secret that follows a predictable structure:
+
+```toml
+[redaction]
+extra_patterns = [
+  "MYCO-[0-9]{8}",       # internal reference numbers
+  "sk_live_[a-zA-Z0-9]+", # custom API key format
+  "tok_[a-f0-9]{32}"      # session token format
+]
+```
+
+Patterns are matched against the full string representation of a value. A partial match anywhere in the string is sufficient to trigger redaction.
+
+## Full `[redaction]` Configuration Example
+
+```toml
+[redaction]
+defaults = true  # keep the built-in key list and pattern detectors (default: true)
+
+extra_keys = [
+  "internal_id",
+  "user_token",
+  "account_number",
+]
+
+extra_patterns = [
+  "MYCO-[0-9]{8}",
+  "sk_live_[a-zA-Z0-9]+",
+]
+```
+
+## Disabling the Built-in Rules
+
+Set `defaults = false` to turn off the built-in key list and pattern detectors entirely, leaving only your `extra_keys` and `extra_patterns` active:
+
+```toml
+[redaction]
+defaults = false
+extra_keys = ["my_secret_field"]
+```
+
+<Warning>
+  Only disable `defaults` if you have a complete, audited custom redaction configuration in place. The built-in rules exist because secrets frequently appear in generic locations — disabling them means JWT tokens, AWS keys, and card numbers stored in innocuously named variables will be recorded in plain text.
+</Warning>
+
+## SQL Query Parameters
+
+By default, Slomo's SQL hook records query structure but **not** the bound parameters. This means `SELECT * FROM users WHERE id = ?` is recorded as-is, but the value substituted for `?` is not captured:
+
+```toml
+[hooks.sql]
+enabled = true
+capture_params = false  # default — parameters are not recorded
+```
+
+If you need to capture parameters for debugging — for example, to understand which record triggered a constraint violation — you can enable it explicitly:
+
+```toml
+[hooks.sql]
+enabled = true
+capture_params = true  # [!code ++]
+```
+
+When `capture_params = true`, parameter values flow through the standard redaction pipeline, so values with sensitive key names or matching patterns are still redacted before being written to disk.
+
+<Note>
+  `capture_params = false` is a stronger guarantee than redaction for SQL: the parameter values are never inspected at all, so there is no possibility of a pattern escaping detection. Use it as the default in any environment that processes payment or health data.
+</Note>
+
+## Verifying Your Redaction Configuration
+
+Before storing or sharing a Slomo session from a production-like environment, verify that sensitive values are absent from the recording. Use `slomo vars` to list all captured variable values for a session, or `slomo replay` to step through the timeline interactively:
+
+```bash
+slomo vars --session latest | grep -i "password\|token\|key"
+```
+
+Any match should show `[REDACTED]`. If you see a plain-text value, add the key name or a matching pattern to your `[redaction]` configuration and re-run the scenario.
+
+<Tip>
+  Run your test suite with `slomo.enable()` active in CI and check the resulting session with `slomo vars` as part of your pipeline. This gives you automated coverage that secrets aren't leaking into recordings before they reach developer machines or log aggregators.
+</Tip>

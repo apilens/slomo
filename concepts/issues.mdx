@@ -1,0 +1,137 @@
+---
+title: "Issues: Grouped Crash Reports in Slomo"
+sidebarTitle: "Issues"
+description: "Slomo automatically fingerprints every crash, groups identical bugs into issues, assigns categories and severity, and tracks recurrence — so you see signal, not noise."
+---
+
+Every time your application crashes, Slomo captures the full incident — the exception type, traceback, and surrounding events. But if the same bug crashes your app fifty times across fifty sessions, you don't want fifty separate reports. Instead, Slomo fingerprints each crash and groups identical ones into a single **issue**, so your view stays focused on distinct problems rather than repetitions of the same one. This page explains how that grouping works, what metadata an issue carries, and how issues move through their lifecycle.
+
+## Incidents and Issues
+
+The relationship between incidents and issues maps to two levels of abstraction:
+
+- An **incident** is one specific occurrence of a crash — tied to a single session, a single point in time, a single traceback. Incidents are raw observations.
+- An **issue** is a group of incidents that share the same fingerprint — the same underlying bug, no matter how many times or in how many sessions it has occurred.
+
+When Slomo records a crash, it computes a fingerprint and checks the issues index. If a matching issue exists, the incident is added to it and the issue's occurrence count increments. If no match exists, a new issue is created. You always interact with issues in the CLI; incidents are the evidence behind them.
+
+## How Fingerprinting Works
+
+Slomo's fingerprint is designed to be stable across minor code changes and volatile runtime values, while still being specific enough that two distinct bugs never collapse into the same issue.
+
+The fingerprint is derived from three components:
+
+1. **Exception type** — the fully qualified class name, e.g. `sqlalchemy.exc.OperationalError`.
+2. **Normalized stack trace** — the sequence of `(module, function_name)` pairs from the traceback frames that belong to your project code. Line numbers are excluded so that adding a comment above a function doesn't create a new issue.
+3. **Normalized message** — the exception message with volatile substrings replaced. Things like memory addresses (`0x7f3a...`), UUIDs, numeric IDs, and file paths with timestamps are stripped and replaced with placeholders before the fingerprint is computed.
+
+```
+fingerprint = hash(
+  exception_type +
+  [(module, function) for frame in project_frames] +
+  normalize(exception_message)
+)
+```
+
+<Note>
+Only frames from your project code contribute to the stack component of the fingerprint. Standard library and third-party frames are excluded. This means a `KeyError` raised in your code always fingerprints to the same issue even if the call passes through different versions of an ORM or HTTP library.
+</Note>
+
+## Issue Fields
+
+Each issue in the index carries the following fields:
+
+| Field | Description |
+|---|---|
+| `id` | Human-readable identifier in the format `SM-xxxx` (e.g. `SM-0042`) |
+| `title` | Short description derived from the exception type and normalized message |
+| `category` | Auto-assigned category (see table below) |
+| `severity` | Highest severity seen across all incidents (`warning`, `error`, `critical`) |
+| `confidence` | How confident Slomo is in the category assignment (`low`, `medium`, `high`) |
+| `status` | Current lifecycle state: `open` or `resolved` |
+| `stability` | Recurrence pattern: `one-time`, `intermittent`, or `recurring` |
+| `occurrences` | Total number of times this crash has been recorded |
+| `affected_sessions` | Number of distinct sessions in which the issue appeared |
+| `first_seen` | Timestamp of the earliest recorded incident |
+| `last_seen` | Timestamp of the most recent recorded incident |
+
+## Category Taxonomy
+
+Slomo automatically assigns each issue to one of ten categories based on the exception type, message patterns, and the context captured in the surrounding events:
+
+| Category | What it covers |
+|---|---|
+| **Null Reference** | `AttributeError`, `TypeError` on `None`, accessing missing keys |
+| **Network** | Connection errors, timeouts on HTTP calls, DNS failures |
+| **Database** | SQL errors, connection pool exhaustion, constraint violations |
+| **Timeout** | Any operation that exceeded a time limit (HTTP, socket, lock, queue) |
+| **IO** | File not found, permission denied, disk full, encoding errors on file reads |
+| **Auth** | `PermissionError`, 401/403 HTTP responses treated as fatal, token errors |
+| **Config** | Missing environment variables, bad configuration values, import errors on startup |
+| **Logic** | `AssertionError`, `ValueError`, `KeyError` in business logic paths |
+| **Resource** | `MemoryError`, thread/process limits, open file descriptor exhaustion |
+| **Unknown** | Crashes that don't match any of the above patterns |
+
+<Info>
+The `confidence` field reflects how certain Slomo is about a category assignment. A `high` confidence means the exception type and message pattern were an unambiguous match. A `low` confidence means the category was inferred from surrounding context and may be worth reviewing manually.
+</Info>
+
+## Issue Lifecycle
+
+Issues move through a simple two-state lifecycle, with one automatic transition:
+
+```
+  new crash
+     │
+     ▼
+  [ open ]  ◄────────────────────────────────────────────┐
+     │                                                    │
+     │  slomo issue resolve SM-xxxx                       │
+     ▼                                                    │
+ [ resolved ]                                             │
+     │                                                    │
+     │  same fingerprint crashes again                    │
+     └────────────────────── auto-reopen ────────────────►┘
+```
+
+**Open** is the default state for any issue that has not been explicitly resolved. It means the bug is known and not yet fixed.
+
+**Resolved** means you have marked the issue as fixed with `slomo issue resolve SM-xxxx`. Slomo records the resolved timestamp and the session in which you ran the command.
+
+**Auto-reopen** happens automatically if a crash with the same fingerprint is recorded after the issue was resolved. This is not a warning or a suggestion — Slomo immediately sets the status back to `open` and records a new incident. You'll see the re-open event in the issue's incident history.
+
+<Warning>
+Resolving an issue in Slomo is a local annotation — it does not modify any source code, deploy any fix, or communicate with an external system. If you resolve an issue before actually shipping the fix, it will auto-reopen the next time the bug occurs.
+</Warning>
+
+## Stability Labels
+
+The `stability` field summarizes how consistently an issue reproduces across sessions:
+
+| Label | Meaning |
+|---|---|
+| `one-time` | Recorded in exactly one session. May be a fluke, an environment-specific problem, or a genuine bug that only appeared once. |
+| `intermittent` | Recorded in multiple sessions but not consistently — appears in fewer than half of sessions in the observed window. |
+| `recurring` | Appears reliably across many sessions. This is the highest urgency signal: the bug is deterministic or near-deterministic. |
+
+Stability is recalculated each time a new incident is recorded for an issue, so the label can advance from `one-time` to `intermittent` to `recurring` as more data accumulates.
+
+## Possibly Related Issues
+
+Sometimes a crash doesn't share an exact fingerprint with an existing issue but is structurally similar — the same exception type in the same module, but a different call path or a subtly different message pattern. Slomo surfaces these as **"possibly related"** issues when you view an issue's detail page.
+
+Possibly related issues are informational only. Slomo never merges them automatically, because an auto-merge could obscure two distinct bugs that happen to look similar. You can review the candidates and decide for yourself whether they represent the same root cause.
+
+## The Issue Index
+
+All issue data is stored in `.slomo/issues/index.sqlite`. This is a **derived cache** — it is built entirely from the information already present in your session timelines. If the index is ever missing, corrupted, or out of sync, you can rebuild it from scratch without losing any recording data:
+
+```bash
+slomo stats --rebuild-index
+```
+
+Rebuilding re-reads every session's timeline, recomputes fingerprints, and reconstructs the full issue list. This also picks up any sessions that were recorded while the index was unavailable (for example, after copying session files from another machine).
+
+<Tip>
+If you copy `.slomo/sessions/` from a production host to your local machine for post-mortem analysis, run `slomo stats --rebuild-index` afterward to populate your local issues index from those sessions.
+</Tip>

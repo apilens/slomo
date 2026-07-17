@@ -1,0 +1,79 @@
+---
+title: "slomo export: Share Sessions and Issues as Files"
+sidebarTitle: "export"
+description: "slomo export converts any session or issue to json, markdown, csv, or html for sharing with teammates or attaching to a bug report. Flags: --session, --issue, --out."
+---
+
+`slomo export` converts a recorded session or issue into a portable file that you can share with a teammate, attach to a bug report, or feed into another tool. You choose the format — JSON for structured data, Markdown for readable prose, CSV for spreadsheets, or HTML for a self-contained browser view.
+
+## Syntax
+
+```bash
+slomo export <FORMAT> [--session SESSION_ID] [--issue ISSUE_ID] [--out FILE]
+```
+
+| Argument / Flag | Description |
+|---|---|
+| `FORMAT` | Output format: `json`, `markdown`, `csv`, or `html` (required) |
+| `--session` / `-s SESSION_ID` | Export a specific session (default: latest session) |
+| `--issue` / `-i ISSUE_ID` | Export an issue, including its metadata and the events from the latest incident |
+| `--out` / `-o FILE` | Write output to this path (default: `.slomo/exports/<auto-named file>`) |
+
+`--session` and `--issue` are mutually exclusive. If you omit both, Slomo exports the most recent session.
+
+## Formats
+
+**`json`** — Newline-delimited JSON containing the full event payload for every event in the session or issue. Use this when you want to process the data programmatically or import it into another observability tool.
+
+**`markdown`** — A human-readable document with a summary header, issue metadata (if applicable), and each event rendered as a formatted section. Well-suited for pasting into a GitHub issue, Notion page, or incident report.
+
+**`csv`** — A flat table with one row per event. Columns include timestamp, session ID, event type, module, function, severity, and a summary field. Import directly into Excel, Google Sheets, or a data notebook.
+
+**`html`** — A self-contained HTML file with inline styles. Open it in any browser — no server required. Useful for sharing with colleagues who do not have Slomo installed.
+
+## Default output location
+
+When you do not pass `--out`, Slomo writes the file to `.slomo/exports/` inside your project directory. The filename is generated automatically from the session or issue ID and the current timestamp, for example:
+
+```
+.slomo/exports/SM-8b6f710a_2024-11-14T09-15.md
+.slomo/exports/session_abc123def456_2024-11-14T09-15.json
+```
+
+## Examples
+
+Export an issue as a Markdown report (written to `.slomo/exports/`):
+
+```bash
+slomo export markdown --issue SM-8b6f710a
+```
+
+Export a specific session as JSON to a custom path:
+
+```bash
+slomo export json --session abc123def456 --out /tmp/session.json
+```
+
+Export the latest session as HTML for browser viewing:
+
+```bash
+slomo export html
+```
+
+Export an issue as CSV for a spreadsheet:
+
+```bash
+slomo export csv --issue SM-8b6f710a --out report.csv
+```
+
+## Exports are point-in-time snapshots
+
+An exported file reflects the state of the session or issue at the moment you ran the command. If new incidents are recorded against the same issue ID, or if you re-open and close the issue, the file on disk does not update automatically. Re-run the export command to get a fresh copy.
+
+<Note>
+When you export with `--issue`, Slomo includes the issue metadata (first seen, last seen, occurrence count, status) as a header section, followed by the events from the **most recent** incident of that issue. To export events from an earlier incident, use its session ID with `--session` instead.
+</Note>
+
+<Tip>
+Pair `slomo export markdown --issue SM-xxxx` with your team's incident workflow. The Markdown output is formatted to paste directly into most ticketing systems and includes a full event timeline, variable snapshots, and HTTP/SQL summaries in a single document.
+</Tip>

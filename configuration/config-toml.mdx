@@ -1,0 +1,199 @@
+---
+title: "Configuring Slomo with config.toml"
+sidebarTitle: "config.toml"
+description: "Tune Slomo's recording, storage, redaction, and hook settings in .slomo/config.toml. All options are optional — Slomo works out of the box with zero configuration."
+---
+
+Slomo works without any configuration file — every setting has a sensible default and recording starts the moment you call `slomo.enable()`. When you want to fine-tune recording fidelity, manage retention, or suppress sensitive data, you do so through `.slomo/config.toml` at the root of your project.
+
+## Creating the config file
+
+The fastest way to get a config file is to run `slomo init` in your project root. It creates the `.slomo/` directory, writes a fully-commented `config.toml`, and prints the one-liner you need to add to your application entry point.
+
+```bash
+slomo init
+```
+
+You can also create `.slomo/config.toml` by hand. Any section or key you omit falls back to its default — you only need to include the settings you want to change.
+
+<Tip>
+Environment variables override config.toml values at runtime. See the [Environment Variables](/configuration/environment-variables) reference for details.
+</Tip>
+
+## Full annotated config.toml
+
+The block below shows every available option with its default value. Copy it as a starting point and remove the lines you don't need.
+
+```toml
+# slomo configuration — https://github.com/apilens/slomo
+
+[recording]
+enabled = true
+max_value_repr = 2048
+max_payload_bytes = 65536
+max_collection_items = 25
+flush_interval_s = 0.5
+
+[storage]
+retention_max_sessions = 200
+
+[redaction]
+# extra_keys = ["internal_id"]
+# extra_patterns = ["MYCO-[0-9]+"]
+# defaults = true
+
+[hooks.http]
+enabled = true
+
+[hooks.sql]
+enabled = true
+capture_params = false
+
+[hooks.logging]
+enabled = true
+level = "WARNING"
+
+[hooks.snapshots]
+enabled = true
+frames = 5
+
+[hooks.autotrace]
+enabled = true
+capture_args = true
+capture_results = true
+# include = ["/opt/shared-lib/*"]
+# exclude = ["*/generated/*"]
+```
+
+---
+
+## [recording]
+
+The `[recording]` section controls what Slomo captures and how it buffers events before flushing them to disk.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | Master switch. Set to `false` to disable all recording without removing the library. |
+| `max_value_repr` | int | `2048` | Maximum character length of any single serialized value. Longer values are truncated and marked with a truncation indicator. |
+| `max_payload_bytes` | int | `65536` | Maximum byte size of a single event payload (64 KB). Events exceeding this limit are stored as a reference to a file in `snapshots/`. |
+| `max_collection_items` | int | `25` | Maximum number of items captured from lists, dicts, sets, and other collections. Additional items are replaced with a count. |
+| `flush_interval_s` | float | `0.5` | How often (in seconds) the background writer flushes the in-memory event queue to the timeline file on disk. |
+
+<Note>
+Lowering `flush_interval_s` reduces the window of data loss if a process is killed abruptly, at the cost of slightly more disk I/O. The default of 0.5 s is a reasonable balance for most applications.
+</Note>
+
+---
+
+## [storage]
+
+The `[storage]` section controls how Slomo manages recorded sessions on disk.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `retention_max_sessions` | int | `200` | Maximum number of sessions to keep on disk. When a new session starts and the total exceeds this limit, the oldest sessions are eligible for removal by `slomo prune`. |
+
+Run `slomo prune` to delete sessions beyond the retention limit. Pass `--keep N` to override the configured value for a single run, and `-y` to skip the confirmation prompt.
+
+---
+
+## [redaction]
+
+The `[redaction]` section lets you prevent sensitive values from appearing in recorded events. Slomo ships with a built-in list of common sensitive field names (passwords, tokens, secrets, and so on) that is active by default.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `defaults` | bool | `true` | Enable Slomo's built-in redaction list, which covers common field names such as `password`, `token`, `secret`, `api_key`, and similar patterns. |
+| `extra_keys` | list of strings | `[]` | Additional field names to redact. Matching is case-insensitive and applies to dictionary keys, keyword arguments, and HTTP header names. |
+| `extra_patterns` | list of strings | `[]` | Additional regular expressions to match against serialized values. Any string matching a pattern is replaced with `[REDACTED]`. |
+
+**Example — adding custom redaction rules:**
+
+```toml
+[redaction]
+defaults = true
+extra_keys = ["internal_id", "customer_ref"]
+extra_patterns = ["MYCO-[0-9]+", "tok_live_[A-Za-z0-9]+"]
+```
+
+<Warning>
+Setting `defaults = false` disables all built-in redaction. Do this only if you have verified that no sensitive data flows through your application, or if you are replacing the defaults entirely with your own `extra_keys` and `extra_patterns`.
+</Warning>
+
+---
+
+## [hooks.http]
+
+Controls recording of outbound HTTP requests and responses.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | Record outbound HTTP requests, response status codes, and timing. Covers libraries built on `urllib3` and `http.client`, including `requests`, `httpx`, and `aiohttp`. |
+
+---
+
+## [hooks.sql]
+
+Controls recording of database queries.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | Record SQL queries, execution time, and row counts via the PEP 249 DB-API hook. |
+| `capture_params` | bool | `false` | Also capture the bound query parameters alongside each SQL statement. Disable if query parameters contain sensitive data that is difficult to redact by key name. |
+
+<Warning>
+Query parameters may contain sensitive data such as user-supplied values. Review your redaction rules before enabling `capture_params = true`.
+</Warning>
+
+---
+
+## [hooks.logging]
+
+Controls integration with Python's standard `logging` module.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | Attach a handler to the root logger and record log records as timeline events. |
+| `level` | string | `"WARNING"` | Minimum log level to record. Accepts any standard level name: `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`. |
+
+Setting `level = "DEBUG"` captures every log message and is useful during development, but can produce very large timelines in verbose applications.
+
+---
+
+## [hooks.snapshots]
+
+Controls automatic local variable capture when exceptions are recorded.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | When an exception propagates, capture the local variables in each stack frame. |
+| `frames` | int | `5` | Number of innermost stack frames to snapshot. Deeper frames are omitted to keep payload sizes manageable. |
+
+---
+
+## [hooks.autotrace]
+
+Autotrace records every function call in your project's source code using Python's `sys.monitoring` API (Python 3.12+). It is the most powerful hook and requires no changes to your source code.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | Enable automatic function-call tracing for all files under the project root. |
+| `capture_args` | bool | `true` | Record the arguments passed to each traced function call. |
+| `capture_results` | bool | `true` | Record the return value of each traced function call. |
+| `include` | list of strings | `[]` | Glob patterns for additional paths outside the project root to trace. Useful for shared libraries installed in non-standard locations. |
+| `exclude` | list of strings | `[]` | Glob patterns for paths inside the project root to skip. Use this to silence noisy generated code or vendored dependencies. |
+
+**Example — tracing an extra library while skipping generated files:**
+
+```toml
+[hooks.autotrace]
+enabled = true
+capture_args = true
+capture_results = true
+include = ["/opt/shared-lib/*"]
+exclude = ["*/generated/*", "*/migrations/*"]
+```
+
+<Note>
+Autotrace uses `sys.monitoring`, which is only available in Python 3.12 and later. On older Python versions, autotrace is automatically disabled and the other hooks continue to work normally.
+</Note>

@@ -1,17 +1,16 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "slomo",
-  "description": "The black box flight recorder for Python applications — record, replay, and diagnose crashes from your terminal.",
+  "theme": "luma",
+  "name": "Slomo",
   "colors": {
-    "primary": "#C2410C",
-    "light": "#FB923C",
-    "dark": "#EA580C"
+    "primary": "#515254",
+    "light": "#b4b4b4",
+    "dark": "#6c6b6d"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/e0eb1bb4-663e-48ee-983b-40468b656dd0.png",
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "https://media.brand.dev/b5e028cf-9735-4c9d-ba8a-8518d98c0cc8.svg",
+    "dark": "https://media.brand.dev/b5e028cf-9735-4c9d-ba8a-8518d98c0cc8.svg"
   },
   "navigation": {
     "tabs": [
@@ -19,15 +18,15 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
               "installation"
             ]
           },
           {
-            "group": "Core concepts",
+            "group": "Core Concepts",
             "pages": [
               "concepts/how-it-works",
               "concepts/sessions-and-events",

@@ -1,0 +1,170 @@
+---
+title: "Searching and Browsing the Event Timeline"
+sidebarTitle: "Search & Timeline"
+description: "Use slomo search for full-text and field-filtered event lookup, and slomo timeline to browse or live-tail a session's chronological event feed."
+---
+
+Slomo records everything your application does — function calls, SQL queries, HTTP requests, log messages, variable snapshots — as a sequence of timestamped events. Two commands give you direct access to that stream without opening the full replay TUI: `slomo timeline` for scrolling through events in chronological order, and `slomo search` for jumping straight to the events that match a keyword or field value. Together they cover the most common investigation tasks: checking what happened in a running app, hunting for a specific error message, or narrowing down which module a problem originated in.
+
+---
+
+## Browsing the Event Timeline
+
+```bash
+slomo timeline
+```
+
+With no arguments, `slomo timeline` displays the event stream of the **most recent session** from start to finish, newest events at the bottom. Each line shows a timestamp, event type, and a short summary of the event data.
+
+You can target any session or issue explicitly:
+
+```bash
+# Timeline for a specific session
+slomo timeline sess_a1b2c3d4
+
+# Timeline for the latest occurrence of an issue
+slomo timeline SM-0001
+```
+
+When you pass an issue ID, Slomo opens the session that produced the most recent occurrence of that issue, giving you full context around the crash rather than just the traceback.
+
+### Live-tailing a running application
+
+```bash
+slomo timeline --follow
+slomo timeline sess_a1b2c3d4 --follow
+```
+
+The `--follow` flag (short: `-f`) polls the session store every 0.5 seconds and streams new events to your terminal as they arrive — the same way `tail -f` works with a log file. This is useful when you're actively exercising a code path and want to watch events appear in real time.
+
+<Tip>
+  Start `slomo timeline --follow` in a dedicated terminal pane before you trigger the code path you're testing. You'll see SQL queries, HTTP calls, and exceptions appear the moment they're recorded.
+</Tip>
+
+### Filtering to warnings and errors only
+
+For busy sessions with hundreds of events, the full stream can be overwhelming. Use `--errors` to show only warning and error events:
+
+```bash
+slomo timeline SM-0001 --errors
+slomo timeline --follow --errors
+```
+
+`--errors` works with `--follow`, so you can live-tail a session and only be interrupted when something actually goes wrong.
+
+---
+
+## Searching Events
+
+```bash
+slomo search QUERY
+```
+
+`slomo search` performs a **full-text search** across all recorded events in your project — not just the current session. Slomo scans event types, messages, function names, module names, and any string data attached to the event.
+
+```bash
+slomo search timeout
+```
+
+```console
+ WHEN                     SESSION          TYPE          MATCH
+ 2025-06-10 13:04:51      sess_a1b2c3d4   http.error    ReadTimeout after 30s calling GET /api/inventory
+ 2025-06-10 13:06:12      sess_e5f6a7b8   log.warning   checkout: upstream timeout, retrying
+ 2025-06-10 13:07:04      sess_c9d0e1f2   http.error    ReadTimeout after 30s calling GET /api/inventory
+```
+
+Each result shows when the event occurred, which session it belongs to, its type, and a snippet of matching text. Use the session IDs to jump into `slomo replay` or `slomo timeline` for full context.
+
+### Field filters
+
+Narrow your results by attaching `field=value` filters after the query. Filters and free-text queries can be combined freely:
+
+```bash
+# Only events from the checkout module
+slomo search module=checkout
+
+# SQL events in the checkout module
+slomo search module=checkout sql
+
+# Events associated with a specific user
+slomo search user=42 error
+```
+
+Filters are additive — all specified filters must match, and if a free-text query is also present, the event must match that too.
+
+### Limiting results
+
+```bash
+# Show at most 10 results
+slomo search timeout -n 10
+```
+
+The default is 25 results. Use `-n` to increase the limit when you're searching across a large dataset and expect many matches.
+
+### Common search patterns
+
+| Goal | Command |
+|------|---------|
+| Find all network errors | `slomo search network.error` |
+| Find crashes in a specific module | `slomo search module=payments error` |
+| Find events for a particular user | `slomo search user=42` |
+| Find slow SQL queries | `slomo search sql slow` |
+| Find a specific error message | `slomo search "object is not subscriptable"` |
+
+---
+
+## Focused Data Views
+
+For the three most common event categories — variables, HTTP traffic, and SQL queries — Slomo provides dedicated views that filter and format the data more clearly than the raw timeline.
+
+All three commands accept an optional `REF` argument: a session ID, an issue ID, or nothing (defaults to the latest session).
+
+### Variable snapshots
+
+```bash
+slomo vars
+slomo vars sess_a1b2c3d4
+slomo vars SM-0001
+```
+
+Shows every variable snapshot Slomo captured, grouped by function and sorted by time. Includes both manually triggered snapshots and the automatic snapshots taken at exception sites.
+
+### HTTP request and response pairs
+
+```bash
+slomo http
+slomo http sess_a1b2c3d4
+slomo http SM-0001
+```
+
+Lists every outgoing HTTP request alongside its response — status code, latency, and body snippet. Useful for confirming whether an upstream API returned an error or unexpected payload before a crash.
+
+### SQL queries and results
+
+```bash
+slomo sql
+slomo sql sess_a1b2c3d4
+slomo sql SM-0001
+```
+
+Lists every SQL query Slomo recorded, the number of rows returned, and query latency. When `slomo doctor` flags a SQL result as context before a crash (for example, "0 rows returned"), use `slomo sql` to examine the full query and confirm the hypothesis.
+
+---
+
+## Inspecting the Span Tree
+
+```bash
+slomo session inspect sess_a1b2c3d4
+```
+
+While `slomo timeline` shows a flat chronological stream, `slomo session inspect` renders a **span tree** — a hierarchical view of every tracked function call in the session, indented to show call nesting, with the wall-clock duration of each span alongside it.
+
+```console
+checkout()                              142ms
+  validate_cart()                        18ms
+  fetch_inventory()                      98ms
+    sql.query  SELECT sku, qty ...         9µs
+  apply_discount()                       22ms
+```
+
+Use the span tree to spot which function consumed the most time, or to confirm the exact call path that led to a failing function before you open `slomo replay` to step through it event-by-event.

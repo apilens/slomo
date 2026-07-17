@@ -1,0 +1,93 @@
+---
+title: "slomo replay: Interactive Crash Step-Through"
+sidebarTitle: "replay"
+description: "slomo replay steps through any session or issue event-by-event in your terminal. Keyboard shortcuts to navigate, inspect variables, and search. Flags: --json, --trace."
+---
+
+`slomo replay` opens an interactive terminal UI that lets you walk through a recorded session one event at a time. You can jump forward and backward through the event stream, inspect the full JSON payload of any event, view variable snapshots at any point in execution, and run inline searches — all without leaving your terminal.
+
+## Syntax
+
+```bash
+slomo replay [ISSUE_ID|SESSION_ID] [--json] [--trace]
+```
+
+| Argument / Flag | Description |
+|---|---|
+| `ISSUE_ID` (e.g. `SM-xxxx`) | Open the session that produced this issue; auto-jump to the first error event |
+| `SESSION_ID` | Open a specific session starting at the first event |
+| _(no argument)_ | Open the most recent recorded session |
+| `--json` | Print all events as newline-delimited JSON and exit (non-interactive) |
+| `--trace` | Print the full event timeline to stdout and exit (non-interactive) |
+
+## Opening a session
+
+Pass any of the three ref types to choose which session to load:
+
+```bash
+# Latest session
+slomo replay
+
+# Specific issue — cursor jumps to the first error automatically
+slomo replay SM-8b6f710a
+
+# Specific session — starts at event 1
+slomo replay abc123def456
+```
+
+When you supply an **issue ID**, the TUI positions the cursor on the first event whose severity is `ERROR` or higher, so you land directly at the point of failure rather than scrolling from the beginning. When you supply a **session ID** or omit the argument entirely, playback starts at event 1.
+
+## Keyboard shortcuts
+
+Once the TUI is open, these keys control navigation and inspection:
+
+| Key | Action |
+|---|---|
+| `n` or `→` | Move to the next event |
+| `p` or `←` | Move to the previous event |
+| `j` | Jump to a specific event by number |
+| `t` | Jump to the first error event in the session |
+| `/query` | Search events — type `/` followed by your query and press Enter |
+| `i` | Inspect the current event (opens the full JSON payload) |
+| `v` | Show all variable snapshots recorded up to the current event |
+| `q` or `Esc` | Quit the TUI |
+
+<Tip>
+Press `t` at any time to snap back to the first error event, even after you've navigated elsewhere. This is useful when you want to explore surrounding context and then return to the failure point quickly.
+</Tip>
+
+## What the TUI shows
+
+The replay interface is split into two panes. The upper pane lists every event in the session with its timestamp, type, and a one-line summary. The lower pane shows the detail view for the currently selected event — the module and function where it was recorded, the severity level, and a formatted preview of the event payload.
+
+Navigating with `n` / `p` moves the cursor through the event list and updates the detail pane in real time. Use `i` to expand the full JSON payload when the preview is truncated, or `v` to see what local variables looked like at the cursor position.
+
+## Non-interactive modes
+
+When you need machine-readable output or want to pipe replay data to another tool, use the non-interactive flags instead of opening the TUI.
+
+**`--json`** emits every event as a JSON object on its own line (newline-delimited JSON). This is suitable for piping to `jq`, log aggregators, or scripts:
+
+```bash
+slomo replay SM-8b6f710a --json | jq '.type'
+slomo replay abc123 --json > session_events.jsonl
+```
+
+**`--trace`** prints the complete timeline in a human-readable format similar to `slomo timeline`, without any interactive controls. Use it when you want a quick full-session printout in a CI log or a terminal that doesn't support the TUI:
+
+```bash
+slomo replay --trace
+slomo replay SM-8b6f710a --trace | grep ERROR
+```
+
+<Note>
+`--json` and `--trace` are mutually exclusive. If both are supplied, `--json` takes precedence.
+</Note>
+
+## Deeper variable inspection
+
+The `v` key inside the TUI shows a condensed variable view for the current event position. For a full, standalone view of every variable snapshot across an entire session — including snapshots captured with `snapshot()` and frames captured at exception time — use [`slomo vars`](/reference/cli/data-views) separately:
+
+```bash
+slomo vars SM-8b6f710a
+```

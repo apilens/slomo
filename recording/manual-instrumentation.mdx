@@ -1,0 +1,190 @@
+---
+title: "Manual Instrumentation with @track, snapshot, and event"
+sidebarTitle: "Manual Instrumentation"
+description: "Use @track to force-trace specific functions, snapshot() to capture variables at any point, and event() to emit custom events into your Slomo timeline."
+---
+
+Auto-tracing covers your entire project root with no code changes, but some situations call for explicit control: a critical function in a third-party library, a variable state you want pinned at a specific moment, or a business event that has no representation in the call graph. Slomo's manual instrumentation API gives you three focused tools — `@track`, `snapshot()`, and `event()` — each designed for a different layer of observability.
+
+## `@track` — Decorator for Explicit Function Tracing
+
+The `@track` decorator marks a specific function for recording regardless of whether auto-tracing covers it. It works on synchronous functions, asynchronous functions, generators, and async generators.
+
+```python
+from slomo import track
+
+@track
+def process_order(order_id: str, user: dict) -> dict:
+    ...
+```
+
+### Decorator options
+
+`@track` accepts three keyword arguments:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `capture_args` | `bool` | `True` | Record the function's arguments |
+| `capture_result` | `bool` | `True` | Record the return value |
+| `name` | `str \| None` | `None` | Override the display name in the timeline |
+
+Pass options by calling `@track` with parentheses:
+
+```python
+from slomo import track
+
+@track(capture_result=False, name="validate-payment")
+def _validate_payment_internal(card: dict, amount: float) -> bool:
+    ...
+```
+
+### Async functions and generators
+
+`@track` detects the function type automatically — you don't need a separate decorator:
+
+```python
+from slomo import track
+
+@track
+async def fetch_user_profile(user_id: str) -> dict:
+    ...
+
+@track
+def stream_events(channel: str):
+    for event in _poll(channel):
+        yield event
+
+@track
+async def async_stream(topic: str):
+    async for msg in _subscribe(topic):
+        yield msg
+```
+
+### Idempotent decoration
+
+`@track` is idempotent. If auto-tracing is also enabled, a function decorated with `@track` is never recorded twice — auto-trace skips those call sites automatically. You can freely mix `@track` and auto-tracing in the same project.
+
+### When to use `@track`
+
+- **Code outside the project root** — third-party libraries, installed packages, or shared internal libraries at non-standard paths that `include` globs don't cover
+- **Fine-grained control** — you want to capture args but suppress results (or vice versa) for a single function without changing global config
+- **Custom timeline names** — the auto-traced name is unwieldy and you want something readable in `slomo replay`
+- **Tests** — decorate the function under test so every test run in CI has a recorded trace
+
+## `snapshot()` — Capture Variables at a Point in Time
+
+`snapshot()` records an explicit variable snapshot into the timeline. Call it anywhere in your code to pin the current value of one or more variables, optionally attaching a label so you can find it in `slomo replay`.
+
+```python
+import slomo
+
+def retry_payment(order: dict, max_attempts: int = 3):
+    for attempt in range(max_attempts):
+        slomo.snapshot("before-attempt", attempt=attempt, order_id=order["id"])
+        try:
+            result = charge(order)
+            slomo.snapshot("charge-succeeded", result=result)
+            return result
+        except PaymentError as exc:
+            slomo.snapshot("charge-failed", attempt=attempt, error=str(exc))
+    raise MaxRetriesExceeded(order["id"])
+```
+
+The label is positional and optional. Variables are passed as keyword arguments and can be any JSON-serialisable value (Slomo serialises non-serialisable objects with `repr()`).
+
+```python
+# Without a label
+slomo.snapshot(user=user, cart=cart)
+
+# With a label
+slomo.snapshot("after-deserialization", payload=payload)
+```
+
+<Tip>
+  Use labels that read like checkpoints — `"before-retry"`, `"after-auth"`, `"cart-locked"`. They appear verbatim in the timeline and make it much faster to navigate a long session in `slomo replay`.
+</Tip>
+
+## `event()` — Emit Custom Events
+
+`event()` records a named event with an optional severity and arbitrary payload. Use it for business-level milestones, feature flag decisions, or any signal that doesn't map to a function call or variable state.
+
+```python
+import slomo
+
+slomo.event("order.placed", order_id=order_id, sku=sku, quantity=qty)
+slomo.event("feature-flag.evaluated", flag="new-checkout", result=True, user_id=uid)
+slomo.event("rate-limit.hit", severity="warning", endpoint="/api/checkout", limit=100)
+```
+
+### Severity levels
+
+The `severity` parameter accepts standard log-level strings. The default is `"info"`.
+
+| Value | When to use |
+|---|---|
+| `"debug"` | Verbose internal state you only want during active debugging |
+| `"info"` | Normal business events — order placed, user logged in |
+| `"warning"` | Unexpected but handled situations — retry triggered, fallback used |
+| `"error"` | Failures that were caught and handled upstream |
+| `"critical"` | Failures that impact multiple users or require immediate attention |
+
+```python
+slomo.event("payment.provider-timeout", severity="error", provider="stripe", duration_ms=5023)
+slomo.event("cache.miss", severity="debug", key=cache_key)
+```
+
+<Note>
+  Events appear in the timeline between function calls, so you can see exactly where in the execution flow a business event occurred. Severity levels are filterable in `slomo replay` and `slomo issues`.
+</Note>
+
+## `install_hooks()` — Re-run Hook Installation After Late Imports
+
+Slomo installs its HTTP and SQL hooks when `enable()` is called. If you import `requests`, `httpx`, or `SQLAlchemy` *after* calling `enable()`, those hooks won't be attached automatically. Call `install_hooks()` after the late import to fix this:
+
+```python
+import slomo
+
+slomo.enable()
+
+# ... some conditional or deferred import ...
+import httpx  # imported after enable()
+
+slomo.install_hooks()  # re-attaches HTTP hooks to httpx
+```
+
+This is most common in plugin architectures, lazy-loading frameworks, or test suites that import networking libraries mid-session.
+
+## `flush()` — Ensure Events Reach Disk
+
+Slomo buffers events in memory and writes them to disk asynchronously for performance. In most long-running processes this is invisible — but in short-lived scripts, test teardown, or before a deliberate `os._exit()` call, you may want to guarantee all buffered events are persisted before the process ends.
+
+```python
+import slomo
+
+slomo.enable()
+
+run_pipeline()
+
+slomo.flush()  # block until all events are on disk
+slomo.disable()
+```
+
+### In tests
+
+`flush()` is particularly useful in test suites where the process doesn't exit between tests:
+
+```python
+import slomo
+import pytest
+
+@pytest.fixture(autouse=True)
+def slomo_session():
+    slomo.enable()
+    yield
+    slomo.flush()
+    slomo.disable()
+```
+
+<Warning>
+  Calling `disable()` without `flush()` first may drop the last few buffered events if the background writer hasn't caught up. Always call `flush()` before `disable()` in scripts or test teardown.
+</Warning>

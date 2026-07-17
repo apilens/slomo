@@ -1,0 +1,407 @@
+---
+title: "Slomo Python API Reference"
+sidebarTitle: "Python API"
+description: "Complete reference for the slomo Python package: enable(), disable(), track, snapshot(), event(), install_hooks(), and flush() with signatures and examples."
+---
+
+The Slomo Python API gives you direct, programmatic control over what gets recorded in your flight log. Auto-tracing captures function calls, HTTP requests, SQL queries, and exceptions automatically — the API lets you go further by attaching custom events, snapshotting arbitrary variables, and controlling exactly when recording starts and stops. You'll reach for these functions when you need context that auto-tracing can't infer on its own, such as business-level events, retry state, or sensitive arguments you deliberately want to exclude.
+
+## Installation
+
+No extra subpackages are required. Import the top-level `slomo` package and everything you need is available:
+
+```python
+import slomo
+```
+
+Individual symbols can also be imported directly:
+
+```python
+from slomo import track, snapshot, event, flush
+```
+
+---
+
+## `enable()`
+
+```python
+def enable(
+    *,
+    root: str | Path | None = None,
+    labels: dict[str, str] | None = None,
+    hooks: bool = True,
+) -> None:
+```
+
+Starts recording for the current process. Call `enable()` once, as early as possible in your application entry point — ideally before any other imports — so that auto-tracing can instrument libraries as they load. `enable()` is idempotent: calling it more than once is safe and has no additional effect after the first call. Startup overhead is under 5 ms.
+
+### Parameters
+
+<ParamField query="root" type="str | Path | None" default="None">
+  Project root directory used to scope auto-tracing. Slomo only traces code located under this path. Defaults to the current working directory at the time `enable()` is called.
+</ParamField>
+
+<ParamField query="labels" type="dict[str, str] | None" default="None">
+  Arbitrary string key-value pairs attached to the session. Labels appear in `slomo sessions` and let you filter or identify recordings by environment, version, or any other dimension you care about.
+</ParamField>
+
+<ParamField query="hooks" type="bool" default="True">
+  When `True`, Slomo installs monkey-patches for supported libraries (requests, httpx, SQLAlchemy, and others) to capture HTTP and SQL events automatically. Set to `False` if you want to start recording without touching any third-party libraries — useful when you need full manual control or are debugging hook conflicts.
+</ParamField>
+
+### Returns
+
+`None`
+
+### Examples
+
+**Zero-config — let Slomo pick sensible defaults:**
+
+```python
+import slomo
+
+slomo.enable()
+```
+
+**Attach labels for environment and release tracking:**
+
+```python
+import slomo
+import os
+
+slomo.enable(
+    labels={
+        "env": os.getenv("APP_ENV", "dev"),
+        "version": "1.4.2",
+    }
+)
+```
+
+**Pin the project root explicitly:**
+
+```python
+import slomo
+from pathlib import Path
+
+slomo.enable(root=Path(__file__).parent.parent)
+```
+
+**Start recording without any library hooks:**
+
+```python
+import slomo
+
+slomo.enable(hooks=False)
+```
+
+<Tip>
+  Place `slomo.enable()` at the very top of your entry point — before framework imports like `flask`, `fastapi`, or `django` — so that hooks are installed before those libraries initialize their own HTTP machinery.
+</Tip>
+
+---
+
+## `disable()`
+
+```python
+def disable() -> None:
+```
+
+Stops recording and finalizes the session. After `disable()` returns, no new events are accepted and the background writer is shut down cleanly. Any events that were buffered in memory at the time of the call are flushed to disk before the writer stops.
+
+If you need a guarantee that all events are on disk *before* calling `disable()`, call [`flush()`](#flush) first.
+
+### Returns
+
+`None`
+
+### Example
+
+```python
+import slomo
+
+slomo.enable()
+
+try:
+    run_short_job()
+finally:
+    slomo.flush()
+    slomo.disable()
+```
+
+<Note>
+  You do not need to call `disable()` in long-running servers. Slomo registers an `atexit` handler that finalizes the session when the process exits normally.
+</Note>
+
+---
+
+## `@track`
+
+```python
+def track(
+    func=None,
+    *,
+    capture_args: bool = True,
+    capture_result: bool = True,
+    name: str | None = None,
+)
+```
+
+A decorator that creates an explicit function span in the recording. Use `@track` when you want guaranteed coverage of a specific function regardless of auto-trace settings, or when you need fine-grained control over what gets captured. `@track` works on regular functions, `async` functions, generators, and async generators.
+
+Functions decorated with `@track` are never double-recorded by auto-tracing — Slomo detects the decorator and skips the automatic instrumentation for that function. When the recorder is disabled, the wrapper short-circuits with near-zero overhead so there is no performance cost in production if recording is off.
+
+### Parameters
+
+<ParamField query="capture_args" type="bool" default="True">
+  When `True`, the values of all arguments passed to the function are recorded at entry. Set to `False` to prevent sensitive arguments (tokens, passwords, PII) from appearing in the flight log.
+</ParamField>
+
+<ParamField query="capture_result" type="bool" default="True">
+  When `True`, the function's return value is recorded at exit. Set to `False` if the return value is large, sensitive, or otherwise not useful in the recording.
+</ParamField>
+
+<ParamField query="name" type="str | None" default="None">
+  Override the span name in the recording. Defaults to the function's qualified name (`module.function_name`). Use this to give a span a stable, human-readable name that won't change if you refactor the function.
+</ParamField>
+
+### Returns
+
+The decorated function (or a decorator factory when called with keyword arguments). The wrapper always returns whatever the original function returns.
+
+### Examples
+
+**Basic usage — record everything:**
+
+```python
+from slomo import track
+
+@track
+def process_order(order_id: str) -> dict:
+    ...
+```
+
+**Exclude sensitive arguments from capture:**
+
+```python
+from slomo import track
+
+@track(capture_args=False, name="process-payment")
+def charge_card(card_token: str, amount: int) -> bool:
+    ...  # card_token will not appear in the flight log
+```
+
+**Async functions and generators work the same way:**
+
+```python
+from slomo import track
+
+@track
+async def fetch_user(user_id: str) -> dict:
+    ...
+
+@track(capture_result=False)
+def stream_rows(query: str):
+    for row in db.execute(query):
+        yield row
+```
+
+<Tip>
+  Use `capture_args=False` for any function that receives credentials, payment details, or personally identifiable information. You still get the span timing and exception details — just not the argument values.
+</Tip>
+
+---
+
+## `snapshot()`
+
+```python
+def snapshot(label: str | None = None, /, **variables: Any) -> None:
+```
+
+Records an explicit variable snapshot at the current point in execution. Use `snapshot()` to capture program state that auto-tracing wouldn't see — loop counters, intermediate computed values, retry context, feature flag states, and so on. The snapshot appears in the flight log as a `variable.snapshot` event with all provided variables attached.
+
+### Parameters
+
+<ParamField query="label" type="str | None" default="None">
+  An optional positional label that identifies this snapshot in the recording. If omitted, the snapshot is identified by its source location. Choose a name that makes the snapshot easy to find when replaying the session.
+</ParamField>
+
+<ParamField query="**variables" type="Any">
+  Keyword arguments representing the variables you want to capture. Each key becomes a named field in the snapshot event. Values are serialized to JSON-compatible representations; non-serializable objects are stored as their `repr()`.
+</ParamField>
+
+### Returns
+
+`None`
+
+### Examples
+
+**Capture retry state inside a backoff loop:**
+
+```python
+import time
+from slomo import snapshot
+
+def retry_with_backoff(fn, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except Exception as e:
+            snapshot("retry-attempt", attempt=attempt, error=str(e))
+            time.sleep(2 ** attempt)
+    raise
+```
+
+**Snapshot without a label:**
+
+```python
+from slomo import snapshot
+
+snapshot(user_id=user.id, cart_total=cart.total, item_count=len(cart.items))
+```
+
+<Note>
+  The label argument is positional-only (note the `/` in the signature). Pass it without a keyword: `snapshot("my-label", x=1)`, not `snapshot(label="my-label", x=1)`.
+</Note>
+
+---
+
+## `event()`
+
+```python
+def event(name: str, /, severity: str = "info", **payload: Any) -> None:
+```
+
+Records a custom event in the flight log. Use `event()` for domain-level occurrences that have meaning in your application but are invisible to infrastructure-level tracing — cache hits, feature flag evaluations, payment outcomes, background job milestones, and so on. The event appears in the recording as a `custom` event type.
+
+### Parameters
+
+<ParamField query="name" type="str">
+  The event name. Use dot-separated namespacing to keep events organized and queryable — for example `"cache.hit"`, `"payment.failed"`, or `"job.completed"`.
+</ParamField>
+
+<ParamField query="severity" type="str" default='"info"'>
+  The severity level of the event. Must be one of:
+
+  | Value | When to use |
+  |-------|-------------|
+  | `"debug"` | Verbose detail useful only during development |
+  | `"info"` | Normal, expected occurrences |
+  | `"warning"` | Unexpected but non-fatal conditions |
+  | `"error"` | Failures that affect the current operation |
+  | `"critical"` | Severe failures requiring immediate attention |
+</ParamField>
+
+<ParamField query="**payload" type="Any">
+  Arbitrary keyword arguments attached to the event as structured data. Values are serialized to JSON-compatible representations; non-serializable objects fall back to `repr()`.
+</ParamField>
+
+### Returns
+
+`None`
+
+### Examples
+
+**Record a low-severity informational event:**
+
+```python
+from slomo import event
+
+event("cache.warmed", entries=1042)
+```
+
+**Record an error event with structured context:**
+
+```python
+from slomo import event
+
+event("payment.failed", severity="error", order_id=oid, reason=reason)
+```
+
+**Track a background job milestone:**
+
+```python
+from slomo import event
+
+event("export.completed", severity="info", rows_written=row_count, duration_ms=elapsed)
+```
+
+<Tip>
+  Pair `event()` with `snapshot()` when you want both a named marker *and* a dump of local variable state at the same point in time.
+</Tip>
+
+---
+
+## `install_hooks()`
+
+```python
+def install_hooks() -> None:
+```
+
+Re-runs Slomo's library hook installation. Normally you never need to call this — `enable()` installs hooks automatically when it runs. Call `install_hooks()` only when a supported library (requests, httpx, SQLAlchemy, etc.) is imported *after* `enable()` has already been called and `hooks=True` was not sufficient to catch it at startup.
+
+### Returns
+
+`None`
+
+### Example
+
+```python
+import slomo
+
+slomo.enable()
+
+# Some plugin or lazy import brings in requests after enable():
+import my_plugin  # internally does: import requests
+
+slomo.install_hooks()  # patch requests now that it's available
+```
+
+<Note>
+  `install_hooks()` is idempotent. Calling it on a library that is already patched is safe and has no effect.
+</Note>
+
+---
+
+## `flush()`
+
+```python
+def flush() -> None:
+```
+
+Blocks the calling thread until all buffered events have been written to disk. Slomo writes events asynchronously in a background thread for minimal overhead during normal operation. In short-lived scripts, test suites, or any context where the process might exit before the background writer has finished, call `flush()` to ensure no events are lost.
+
+### Returns
+
+`None`
+
+### Examples
+
+**Guarantee events are on disk before a short script exits:**
+
+```python
+import slomo
+
+slomo.enable()
+
+try:
+    run_short_job()
+finally:
+    slomo.flush()
+    slomo.disable()
+```
+
+**Use in tests to assert on recorded events after a call:**
+
+```python
+import slomo
+
+def test_payment_failure_is_recorded():
+    slomo.enable()
+    trigger_failed_payment()
+    slomo.flush()  # wait for the background writer before asserting
+    # now inspect the session recording...
+```
+
+<Tip>
+  In test environments, call `flush()` after every logical unit of work you want to assert on. This removes any timing dependency between your test assertions and Slomo's background writer.
+</Tip>

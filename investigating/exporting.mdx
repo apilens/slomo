@@ -1,0 +1,152 @@
+---
+title: "Exporting Sessions and Issues for Sharing"
+sidebarTitle: "Exporting"
+description: "Export any Slomo session or issue as JSON, Markdown, CSV, or HTML to share with teammates or attach to a bug report."
+---
+
+Slomo stores everything locally, which is great for fast iteration on your own machine but less useful when you need to loop in a teammate, attach a crash report to a ticket, or archive a session before wiping your data store. The `slomo export` command packages any session or issue into a self-contained file you can send, open in a browser, or load into another tool — no Slomo installation required on the receiving end.
+
+---
+
+## Export Syntax
+
+```bash
+slomo export FORMAT [OPTIONS]
+```
+
+| Argument / Option | Description |
+|-------------------|-------------|
+| `FORMAT` | One of `json`, `markdown`, `csv`, or `html`. Required. |
+| `--session SESSION_ID` / `-s` | Export a specific session. Defaults to the latest session if neither `--session` nor `--issue` is provided. |
+| `--issue ISSUE_ID` / `-i` | Export an issue (all occurrences and diagnosis data) instead of a session. |
+| `--out FILE` / `-o` | Write to a custom file path. Defaults to `.slomo/exports/`. |
+
+---
+
+## Exporting a Session vs. an Issue
+
+### Exporting a session
+
+A session export captures everything Slomo recorded during one run of your application: the event timeline, HTTP requests and responses, SQL queries, variable snapshots, and metadata like start time and whether the session crashed.
+
+```bash
+# Export the latest session as Markdown
+slomo export markdown
+
+# Export a specific session as JSON
+slomo export json --session sess_a1b2c3d4
+
+# Export a specific session as HTML to a custom path
+slomo export html --session sess_a1b2c3d4 --out ~/Desktop/session-report.html
+```
+
+### Exporting an issue
+
+An issue export captures the grouped crash data: every occurrence, the latest traceback, first/last seen timestamps, severity, and the full `slomo doctor` diagnosis output.
+
+```bash
+# Export an issue as Markdown (good for attaching to a GitHub issue)
+slomo export markdown --issue SM-0001
+
+# Export an issue as JSON for programmatic processing
+slomo export json --issue SM-0001 --out /tmp/sm-0001.json
+```
+
+<Note>
+  When exporting an issue, Slomo includes data from **all recorded occurrences**, not just the most recent one. This gives the recipient a complete picture of how frequently and across which sessions the crash happened.
+</Note>
+
+---
+
+## Output Formats
+
+### JSON
+
+The most complete and machine-readable format. The output is a single JSON object with top-level keys for metadata, events (as an array), and any associated HTTP, SQL, or variable data. Use this when you want to load the data into another tool, write a script to analyse it, or archive it in a structured way.
+
+```bash
+slomo export json --issue SM-0001 --out sm-0001-export.json
+```
+
+### Markdown
+
+A human-readable document with sections for issue metadata, the doctor diagnosis, a formatted event timeline, and the latest traceback. This format pastes cleanly into GitHub issues, Linear tickets, Notion pages, Confluence, and most other documentation tools.
+
+```bash
+slomo export markdown --issue SM-0001 --out sm-0001.md
+```
+
+### CSV
+
+A flat spreadsheet of events — one row per event, with columns for timestamp, session ID, event type, and the event data fields. Use CSV when you want to open the data in Excel or Google Sheets, or import it into a data analysis workflow.
+
+```bash
+slomo export csv --session sess_a1b2c3d4 --out session-events.csv
+```
+
+### HTML
+
+A self-contained HTML file with embedded styling that renders as a formatted crash report in any browser. No external dependencies, no server required — just open the file. This is the best format for sharing with stakeholders who aren't comfortable reading raw JSON or Markdown.
+
+```bash
+slomo export html --issue SM-0001 --out crash-report.html
+```
+
+<Tip>
+  HTML exports are fully self-contained — all styles are inlined. You can email the file directly or attach it to a Jira ticket without worrying about broken stylesheet links.
+</Tip>
+
+---
+
+## Output Location
+
+By default, Slomo writes exported files to `.slomo/exports/` inside your project directory, using an auto-generated filename that includes the issue or session ID and the format extension:
+
+```console
+.slomo/exports/SM-0001.md
+.slomo/exports/sess_a1b2c3d4.json
+```
+
+To write to a specific path instead, use `--out`:
+
+```bash
+slomo export html --issue SM-0001 --out ~/reports/checkout-crash.html
+```
+
+---
+
+## Common Scenarios
+
+### Attach a crash report to a bug ticket
+
+```bash
+slomo export markdown --issue SM-0001 --out checkout-crash.md
+```
+
+Paste the Markdown directly into a GitHub issue or Linear ticket. The output includes the issue title, severity, occurrence count, doctor diagnosis, and the latest traceback — everything a reviewer needs to understand the bug without having Slomo installed.
+
+### Share a full session with a teammate for review
+
+```bash
+slomo export html --session sess_a1b2c3d4 --out session-for-review.html
+```
+
+Send the HTML file over Slack or email. Your teammate opens it in a browser and sees the complete event timeline, HTTP calls, and SQL queries in a readable format.
+
+### Archive an issue before resolving it
+
+```bash
+slomo export json --issue SM-0001 --out archives/SM-0001-$(date +%F).json
+slomo issue resolve SM-0001
+```
+
+Archiving as JSON before resolving means you retain the complete, structured data even if you later prune old sessions from the data store.
+
+### Feed crash data into a script
+
+```bash
+slomo export json --issue SM-0001 --out /tmp/sm-0001.json
+python analyse_crash.py /tmp/sm-0001.json
+```
+
+JSON exports are straightforward to parse. The top-level structure always includes `metadata`, `events`, `occurrences`, and `diagnosis` keys, making it easy to write scripts that extract specific fields or compare exports across issues.

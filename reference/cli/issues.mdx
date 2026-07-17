@@ -1,0 +1,296 @@
+---
+title: "slomo issues: Managing Grouped Crash Reports"
+sidebarTitle: "issues"
+description: "Reference for slomo issues and slomo issue subcommands. List, inspect, resolve, and reopen crash groups. Key flags: --status, --category, --all."
+---
+
+When your application raises an exception, Slomo records the incident and groups it with other occurrences that share the same crash fingerprint. Each such group is called an **issue**. The `slomo issues` and `slomo issue` commands let you list and filter issues, inspect their full history, manage their lifecycle, and navigate to the sessions where they occurred.
+
+Issue IDs use the format `SM-xxxxxxxx` — the prefix `SM` followed by eight hexadecimal characters (for example, `SM-3a9f1b2c`). All commands that accept an issue ID also accept any **unique prefix** of that ID.
+
+---
+
+## `slomo issues`
+
+Lists crash issues, grouped by fingerprint. By default only open (unresolved) issues are shown.
+
+### Syntax
+
+```bash
+slomo issues [--status open|resolved] [--category <cat>] [--all]
+```
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--status open\|resolved` | Filter by lifecycle status. Defaults to `open`. |
+| `--category <cat>` | Show only issues in a specific category (e.g. `Null Reference`, `Database`). |
+| `--all` | Show issues of every status, ignoring the `--status` filter. |
+
+### Example output
+
+```console
+$ slomo issues
+  ID            CATEGORY        SEVERITY  STATUS  OCCURRENCES  LAST SEEN
+  SM-3a9f1b2c   Null Reference  high      open    5            2024-06-10 13:04:52
+  SM-77c40d1e   Database        medium    open    2            2024-06-09 17:22:09
+  SM-b5e21f90   Timeout         low       open    1            2024-06-08 09:11:33
+```
+
+```console
+$ slomo issues --status resolved
+  ID            CATEGORY  SEVERITY  STATUS    OCCURRENCES  LAST SEEN
+  SM-1a2b3c4d   IO        low       resolved  3            2024-06-07 14:05:18
+```
+
+```console
+$ slomo issues --category Database
+  ID            CATEGORY  SEVERITY  STATUS  OCCURRENCES  LAST SEEN
+  SM-77c40d1e   Database  medium    open    2            2024-06-09 17:22:09
+```
+
+---
+
+## `slomo issue show`
+
+Displays full detail for a single issue: its category, severity, lifecycle status, stability trend, occurrence count, first and last seen timestamps, the latest traceback, and any related issues.
+
+### Syntax
+
+```bash
+slomo issue show <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID (`SM-xxxxxxxx`) or a unique prefix |
+
+### Example output
+
+```console
+$ slomo issue show SM-3a9f1b2c
+
+Issue         SM-3a9f1b2c
+Title         TypeError: 'NoneType' object is not subscriptable
+Category      Null Reference
+Severity      high
+Status        open
+Stability     recurring
+
+Occurrences   5  (5 unhandled)
+First seen    2024-06-08 10:22:14
+Last seen     2024-06-10 13:04:52
+
+Latest traceback:
+  File "app.py", line 14, in checkout
+    total = inventory["qty"] * item["price"]
+TypeError: 'NoneType' object is not subscriptable
+
+Related issues:
+  SM-4fd92a11   Null Reference  72% similar
+```
+
+---
+
+## `slomo issue occurrences`
+
+Lists every recorded incident for an issue — when it happened, which session captured it, whether the exception was unhandled, and the exception message.
+
+### Syntax
+
+```bash
+slomo issue occurrences <ID> [-n N]
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID or a unique prefix |
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `-n N` | all | Maximum number of occurrences to display |
+
+### Example output
+
+```console
+$ slomo issue occurrences SM-3a9f1b2c
+  #   TIMESTAMP              SESSION    UNHANDLED  MESSAGE
+  1   2024-06-08 10:22:14    c3d4e5f6   yes        'NoneType' object is not subscriptable
+  2   2024-06-08 14:07:51    b2c3d4e5   yes        'NoneType' object is not subscriptable
+  3   2024-06-09 09:55:02    a1b2c3d4   yes        'NoneType' object is not subscriptable
+  4   2024-06-09 17:22:08    9f8e7d6c   yes        'NoneType' object is not subscriptable
+  5   2024-06-10 13:04:52    a1b2c3d4   yes        'NoneType' object is not subscriptable
+```
+
+---
+
+## `slomo issue timeline`
+
+Shows the event timeline for the latest occurrence of an issue — the sequence of recorded events (SQL queries, HTTP requests, log lines, function calls) leading up to and including the crash.
+
+### Syntax
+
+```bash
+slomo issue timeline <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo issue timeline SM-3a9f1b2c
+
+Timeline for latest occurrence (session a1b2c3d4, 2024-06-10 13:04:52):
+
+  13:04:51.900  function.call   handle_request()
+  13:04:51.912  function.call   authenticate()
+  13:04:51.924  function.return authenticate()         12ms
+  13:04:51.925  function.call   load_cart()
+  13:04:51.930  sql.query       SELECT * FROM cart WHERE user_id = ?
+  13:04:51.931  sql.result      3 rows, 1ms
+  13:04:51.979  function.return load_cart()            54ms
+  13:04:51.980  function.call   checkout()
+  13:04:52.067  function.call   get_inventory()
+  13:04:52.133  sql.query       SELECT sku, qty FROM inventory WHERE sku = ?
+  13:04:52.133  sql.result      0 rows, 9µs
+  13:04:52.154  function.return get_inventory()        87ms
+  13:04:52.180  log.error       inventory lookup returned None for sku=ABC-99
+  13:04:52.180  exception       TypeError: 'NoneType' object is not subscriptable
+                                checkout() at app.py:14
+```
+
+<Tip>
+The timeline is a fast way to see what happened immediately before a crash without needing to open a full session inspect. For a deeper view of the call tree, use `slomo session inspect` with the session ID shown in the timeline header.
+</Tip>
+
+---
+
+## `slomo issue sessions`
+
+Lists all sessions in which this issue occurred.
+
+### Syntax
+
+```bash
+slomo issue sessions <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo issue sessions SM-3a9f1b2c
+
+Sessions affected by SM-3a9f1b2c:
+  SESSION     STARTED               DURATION  STATUS
+  c3d4e5f6    2024-06-08 10:22:14   1.9s      crashed
+  b2c3d4e5    2024-06-08 14:07:51   2.1s      crashed
+  a1b2c3d4    2024-06-09 09:55:02   2.0s      crashed
+  9f8e7d6c    2024-06-09 17:22:08   0.4s      crashed
+  a1b2c3d4    2024-06-10 13:04:52   2.3s      crashed
+```
+
+---
+
+## `slomo issue resolve`
+
+Marks an issue as resolved. If the same crash fingerprint appears again in a future session, Slomo will **automatically reopen** the issue.
+
+### Syntax
+
+```bash
+slomo issue resolve <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo issue resolve SM-3a9f1b2c
+SM-3a9f1b2c marked as resolved.
+Note: this issue will be automatically reopened if the crash recurs.
+```
+
+---
+
+## `slomo issue reopen`
+
+Reopens an issue that was previously resolved, setting its status back to `open`.
+
+### Syntax
+
+```bash
+slomo issue reopen <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo issue reopen SM-3a9f1b2c
+SM-3a9f1b2c reopened.
+```
+
+---
+
+## `slomo issue explain`
+
+Prints a concise one-paragraph plain-language explanation of the issue: what went wrong, where, and a brief suggestion for where to look. This is a lighter-weight alternative to `slomo doctor` when you want a quick summary without the full diagnostic output.
+
+### Syntax
+
+```bash
+slomo issue explain <ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ID` | Full issue ID or a unique prefix |
+
+### Example output
+
+```console
+$ slomo issue explain SM-3a9f1b2c
+
+SM-3a9f1b2c — TypeError: 'NoneType' object is not subscriptable
+
+This issue is a Null Reference crash occurring in checkout() at app.py:14.
+The variable 'inventory' is None at the point of access, most likely because
+the preceding SQL query returned zero rows and the result was not checked
+before use. The issue has been seen 5 times across 5 sessions and has not
+been resolved. Consider guarding against a None return value from
+get_inventory() before proceeding with the checkout logic.
+```
+
+<Tip>
+For a more detailed diagnosis — including the first bad variable, suggested fix, and correlated events — run `slomo doctor SM-3a9f1b2c`. See the [doctor reference](/reference/cli/doctor) for full details.
+</Tip>

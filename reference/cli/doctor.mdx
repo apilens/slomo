@@ -1,0 +1,124 @@
+---
+title: "slomo doctor: Heuristic Root-Cause Diagnosis"
+sidebarTitle: "doctor"
+description: "slomo doctor ISSUE — analyzes a crash issue and outputs likely root cause, first bad function and variable, suggested fix, and correlated events."
+---
+
+`slomo doctor` performs a heuristic analysis of a crash issue and produces a structured diagnosis: what went wrong, which function and variable were the proximate cause, a suggested fix, the context events that preceded the crash, and any related issues. The analysis is driven by the data Slomo has already recorded — it does not call an external service or require an internet connection.
+
+## Syntax
+
+```bash
+slomo doctor <ISSUE_ID>
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `ISSUE_ID` | Full issue ID (`SM-xxxxxxxx`) or a unique prefix |
+
+---
+
+## Example output
+
+The annotated example below shows every field `slomo doctor` can produce. Not all fields appear for every issue — for example, `First bad variable` is omitted when no variable state could be inferred.
+
+```console
+$ slomo doctor SM-3a9f1b2c
+
+Category              Null Reference  (95% confidence)
+Severity              high
+Status                open
+Stability             recurring
+
+Occurrences           5  (5 unhandled) across 5 session(s)
+First seen            2024-06-08 10:22:14
+Last seen             2024-06-10 13:04:52
+
+Likely root cause     TypeError raised in checkout() at app.py:14.
+                      Variable 'inventory' was None at the crash site.
+
+First bad function    checkout()
+First bad variable    inventory
+
+Suggested fix         Guard against None before the failing access at app.py:14
+                      — trace where the value is produced and handle the missing case.
+
+Context just before the crash:
+  13:04:52.133  sql.query    SELECT sku, qty FROM inventory WHERE sku = ?
+  13:04:52.133  sql.result   0 rows, 9µs
+  13:04:52.180  log.error    inventory lookup returned None for sku=ABC-99
+
+Related issues:
+  SM-4fd92a11   Null Reference   72% similar
+  SM-9c1e7b03   Logic            41% similar
+```
+
+---
+
+## Output fields explained
+
+| Field | Description |
+|---|---|
+| **Category** | The crash category assigned by the heuristic classifier, with a confidence percentage. See [categories](#categories) below. |
+| **Severity** | How serious the issue is judged to be: `low`, `medium`, `high`, or `critical`. Derived from exception type, unhandled rate, and recurrence. |
+| **Status** | The issue's current lifecycle state: `open` or `resolved`. |
+| **Stability** | Whether the issue is getting better or worse over time: `new`, `recurring`, `increasing`, `decreasing`, or `stable`. |
+| **Occurrences** | Total recorded incidents, with the count of unhandled exceptions and the number of distinct sessions affected. |
+| **First seen / Last seen** | Timestamps of the earliest and most recent recorded occurrences. |
+| **Likely root cause** | A natural-language summary of the heuristic finding: the exception type, the function where it was raised, and any variable state that could be determined. |
+| **First bad function** | The function identified as the proximate failure point — the innermost call on the stack that raised the exception. |
+| **First bad variable** | The variable that was in a bad state (e.g. `None`, out of range) at the crash site, if one could be determined from recorded data. |
+| **Suggested fix** | A plain-language remediation hint pointing to the specific file and line number. |
+| **Context just before the crash** | The correlated events recorded in the seconds leading up to the exception: SQL queries and their result row counts, HTTP requests, log lines. This is the most useful field for understanding *why* a variable ended up in a bad state. |
+| **Related issues** | Other issues with a similar fingerprint, ranked by similarity percentage. Useful for spotting cascading or duplicate problems. |
+
+---
+
+## Categories
+
+Slomo classifies every issue into one of the following categories. The category and confidence percentage appear at the top of the doctor output.
+
+| Category | Description |
+|---|---|
+| **Null Reference** | A `None` (or equivalent empty) value was accessed where an object was expected. |
+| **Network** | A failure involving an outbound HTTP or socket connection — timeouts, refused connections, DNS errors. |
+| **Database** | An error originating from a database driver or ORM: query errors, constraint violations, connection failures. |
+| **Timeout** | An operation exceeded its time limit — a `socket.timeout`, `asyncio.TimeoutError`, or similar. |
+| **IO** | A filesystem or stream error: missing files, permission denied, broken pipes. |
+| **Auth** | An authentication or authorisation failure: invalid credentials, expired tokens, permission errors. |
+| **Config** | A missing or malformed configuration value: absent environment variables, bad TOML/YAML, missing keys. |
+| **Logic** | An assertion failure, invalid state transition, or value-range violation that doesn't fit another category. |
+| **Resource** | Memory exhaustion, open file descriptor limits, or other operating-system resource constraints. |
+| **Unknown** | The heuristic could not assign a category with sufficient confidence. |
+
+---
+
+## Tips
+
+<Tip>
+Run `slomo doctor` before you start debugging. The **First bad function** and **First bad variable** fields tell you exactly where to set your first breakpoint or add your first assertion, saving you the time of reading the full session trace yourself.
+</Tip>
+
+<Tip>
+Pay close attention to **Context just before the crash**. A SQL result showing `0 rows` immediately before a `None` access is a strong signal that a missing-result case is unhandled. An HTTP response with a non-200 status before an attribute access points to an unguarded API response parse.
+</Tip>
+
+<Note>
+`slomo doctor` is a **heuristic** tool — its analysis is based on patterns in the recorded data. The confidence percentage reflects how well the observed evidence matches a known crash pattern. For ambiguous crashes, the category may be `Unknown` and the suggested fix will be more general. In those cases, use `slomo session inspect` on one of the affected sessions to explore the full span tree manually.
+</Note>
+
+---
+
+## Lighter-weight alternative
+
+If you want a quick prose summary without the full structured output, use `slomo issue explain` instead:
+
+```bash
+slomo issue explain <ISSUE_ID>
+```
+
+`slomo issue explain` produces a single paragraph covering the same core finding as `slomo doctor`, without the context events or related issues table. It is useful for a fast triage pass through a list of open issues before deciding which ones deserve a full doctor run.
+
+See the [issues reference](/reference/cli/issues#slomo-issue-explain) for details and example output.
