@@ -154,3 +154,22 @@ class TestRedactor:
                         check(v)
 
         check(out)
+
+
+class TestFrameClassification:
+    def test_user_project_named_slomo_is_not_internal(self, tmp_path):
+        """A project directory literally called 'slomo' (e.g. a repo checkout)
+        must not classify user frames as slomo-internal — that would silently
+        drop crash-locals snapshots (regression: CI checkout at .../slomo/slomo)."""
+        from slomo._core import frames
+
+        user_file = str(tmp_path / "slomo" / "app.py")
+        assert not frames.is_internal_file(user_file)
+        assert frames.is_project_file(user_file)
+
+    def test_package_files_are_internal(self):
+        from slomo._core import frames
+
+        assert frames.is_internal_file(frames.__file__)
+        assert frames.is_internal_file("<string>")
+        assert frames.is_internal_file("")

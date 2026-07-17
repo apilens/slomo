@@ -3,12 +3,15 @@ issue engine (which never re-parses traceback text)."""
 
 from __future__ import annotations
 
+import os
 import sys
 import sysconfig
 import traceback
 from typing import Any
 
-_PKG_PREFIX = __name__.split(".")[0]  # "slomo"
+# the installed slomo package directory — matched by real path, never by the
+# name "slomo" appearing in a path (a user's project dir may be called slomo)
+_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + os.sep
 _STDLIB = sysconfig.get_paths().get("stdlib", "")
 _SITE_MARKERS = ("site-packages", "dist-packages")
 
@@ -31,7 +34,9 @@ def extract_frames(exc: BaseException, limit: int = 50) -> list[dict[str, Any]]:
 
 
 def is_internal_file(filename: str) -> bool:
-    return f"{_PKG_PREFIX}/" in filename.replace("\\", "/") or filename.startswith("<")
+    if not filename or filename.startswith("<"):
+        return True
+    return os.path.abspath(filename).startswith(_PKG_DIR)
 
 
 def is_library_file(filename: str) -> bool:
