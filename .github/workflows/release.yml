@@ -1,0 +1,115 @@
+# Release pipeline: push to main -> tests -> (if pyproject version is new)
+# publish to PyPI -> update the Homebrew tap formula.
+#
+# To ship a release: bump [project] version in pyproject.toml (and
+# __version__ in src/slomo/__init__.py), push to main. Everything else is
+# automatic. Pushes without a version bump only run the tests.
+#
+# Secrets:
+#   PYPI_API_TOKEN           PyPI token used by the publish step
+#   HOMEBREW_TAP_DEPLOY_KEY  write deploy key for bhatt-neel-dev/homebrew-slomo
+#
+# Note: the Homebrew step bumps only slomo's own url/sha256. If dependency
+# pins change (typer/rich/...), regenerate the formula's resource blocks
+# manually in the tap repo.
+
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: ruff check src tests examples
+      - run: python -m pytest -q
+
+  version:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if curl -fs "https://pypi.org/pypi/slomo/$VERSION/json" > /dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "slomo $VERSION is already on PyPI — tests only, nothing to publish"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "slomo $VERSION is new — releasing"
+          fi
+
+  pypi:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install build
+          python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  homebrew:
+    needs: [version, pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for PyPI to serve the new sdist
+        id: sdist
+        run: |
+          VERSION='${{ needs.version.outputs.version }}'
+          for i in $(seq 1 30); do
+            if curl -fs "https://pypi.org/pypi/slomo/$VERSION/json" -o release.json; then
+              break
+            fi
+            echo "sdist not visible yet, retrying ($i/30)..."
+            sleep 10
+          done
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json
+          sdist = next(
+              u for u in json.load(open("release.json"))["urls"]
+              if u["packagetype"] == "sdist"
+          )
+          print(f"url={sdist['url']}")
+          print(f"sha={sdist['digests']['sha256']}")
+          EOF
+      - uses: actions/checkout@v4
+        with:
+          repository: bhatt-neel-dev/homebrew-slomo
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+      - name: Bump formula
+        run: |
+          # top-level url/sha256 are indented two spaces; resources four —
+          # so these seds never touch the resource blocks
+          sed -i -E 's|^  url ".*"|  url "${{ steps.sdist.outputs.url }}"|' Formula/slomo.rb
+          sed -i -E 's|^  sha256 ".*"|  sha256 "${{ steps.sdist.outputs.sha }}"|' Formula/slomo.rb
+          git config user.name "slomo-release-bot"
+          git config user.email "noreply@github.com"
+          if git diff --quiet; then
+            echo "formula already current"
+          else
+            git commit -am "slomo ${{ needs.version.outputs.version }}"
+            git push
+          fi
