@@ -1,65 +1,9 @@
 ---
-title: "What is slomo?"
-description: "The black box flight recorder for Python applications — record, replay, and diagnose crashes from your terminal."
-icon: "circle-play"
+title: "Slomo: Flight Recorder for Python Applications"
+sidebarTitle: "Introduction"
+description: "Slomo records every function call, crash, SQL query, and HTTP request in your Python app locally — replay and diagnose bugs from your terminal without a server or account."
 ---
 
-**slomo** records everything your Python application does — every function call, SQL query, HTTP request, log record, and crash — into a local flight recorder. When something breaks, you don't reproduce the bug; you replay it.
+Slomo is a zero-config flight recorder for Python applications. Drop two lines into your app and Slomo silently captures every function call, unhandled exception, SQL query, HTTP request, and log record to a local append-only log — then gives you a terminal UI to replay and diagnose crashes without touching a server, creating an account, or changing how you work.
 
-```python
-from slomo import enable
-
-enable()
-```
-
-That's the entire integration. No dashboard, no browser, no Docker, no external database, no account, no telemetry. Everything is recorded locally under `.slomo/` and explored entirely from your terminal.
-
-## Why a flight recorder?
-
-Aircraft don't rely on pilots reproducing an incident — the black box already captured it. slomo brings the same model to Python debugging:
-
-<CardGroup cols={2}>
-  <Card title="Record" icon="record-vinyl" href="/recording/auto-tracing">
-    One `enable()` call auto-traces every function call in your project code, plus SQL, HTTP, logs, and unhandled exceptions — with local variables from the crashing frames.
-  </Card>
-  <Card title="Group" icon="layer-group" href="/concepts/issues">
-    Crashes are fingerprinted and deduplicated into **issues**. The same bug tomorrow lands in the same issue instead of burying you in duplicates.
-  </Card>
-  <Card title="Diagnose" icon="stethoscope" href="/investigating/issues-workflow">
-    `slomo doctor` runs a heuristic root-cause analysis: category, first bad function, first bad variable, and a suggested fix.
-  </Card>
-  <Card title="Replay" icon="clapperboard" href="/investigating/replay">
-    `slomo replay` steps through the recorded execution event by event — inspect payloads, variables, and the context leading up to the crash.
-  </Card>
-</CardGroup>
-
-## Design guarantees
-
-slomo is built to run in the background of a real application without you thinking about it:
-
-- **Fast** — `enable()` completes in under 5 ms (enforced by a test). Events go through one lock-free queue put; a background thread batches writes. The recorder's hot path imports zero CLI dependencies.
-- **Crash-safe** — append-only JSONL with fsync on the crash path and a tolerant reader. A `kill -9` loses at most the final partial line.
-- **Never breaks your app** — every hook callback is exception-isolated, storage failures are swallowed, and backpressure drops low-severity events rather than blocking your code.
-- **Private by default** — secrets are [redacted at capture time](/recording/redaction); they never touch disk.
-- **Local-first** — your data stays in `.slomo/` in your project. JSONL timelines are the source of truth; the SQLite issue index is a rebuildable cache.
-
-## Where to go next
-
-<CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Record and diagnose your first crash in 60 seconds.
-  </Card>
-  <Card title="How it works" icon="gears" href="/concepts/how-it-works">
-    The architecture: recorder, hooks, storage, and the issue engine.
-  </Card>
-  <Card title="CLI reference" icon="terminal" href="/reference/cli/overview">
-    Every command, argument, and flag.
-  </Card>
-  <Card title="Configuration" icon="sliders" href="/configuration/config-toml">
-    Tune recording, hooks, redaction, and retention.
-  </Card>
-</CardGroup>
-
-<Note>
-slomo requires **Python 3.12+** (auto-tracing is built on `sys.monitoring`, PEP 669). It is MIT licensed.
-</Note>
+See the [Introduction](/introduction) page to get started.

@@ -1,6 +1,6 @@
 ---
-title: "Python API"
-description: "The complete public API: seven names, all importable from `slomo`."
+title: "Slomo Python API Reference — Flight Recorder Functions"
+description: "Complete public API reference for slomo's seven importable functions: enable, disable, track, snapshot, event, install_hooks, and flush."
 icon: "python"
 ---
 
@@ -9,7 +9,7 @@ The entire public API is deliberately small — everything is importable from th
 ```python
 from slomo import enable, disable, track, snapshot, event, install_hooks, flush
 import slomo
-slomo.__version__   # "0.1.0"
+slomo.__version__   # "0.1.1"
 ```
 
 Every call is a **safe no-op when the recorder is inactive** — you can leave instrumentation in production code unconditionally.
@@ -170,7 +170,7 @@ Block until every buffered event is on disk (with fsync). The writer thread norm
 ## `__version__`
 
 ```python
-slomo.__version__  # e.g. "0.1.0"
+slomo.__version__  # e.g. "0.1.1"
 ```
 
 ## Stability

@@ -1,6 +1,7 @@
 ---
-title: "How issues work"
-description: "Fingerprinting, deduplication, classification, and the issue lifecycle."
+title: "How Slomo Issues Work: Fingerprinting and Classification"
+sidebarTitle: "Issues"
+description: "How Slomo deduplicates crashes into issues: fingerprinting, automatic category classification, stability tracking, and the open/resolved lifecycle."
 icon: "bug"
 ---
 
@@ -33,9 +34,11 @@ Each issue is automatically classified with a **category**, **severity**, and **
 | Database | `sqlite3`/`psycopg`/`sqlalchemy`/… modules, `OperationalError`, `IntegrityError`, … |
 | Network | socket/`requests`/`httpx`/ssl modules, `ConnectionError` family |
 | Filesystem | `FileNotFoundError`, `IsADirectoryError`, … |
-| Memory / Resource Exhaustion | `MemoryError`, `RecursionError`, "too many open files" (critical severity) |
+| Memory | `MemoryError` (critical severity) |
+| Resource Exhaustion | `RecursionError`, "too many open files" (critical severity) |
 | Dependency | `ModuleNotFoundError`, `ImportError` |
-| Authentication / Authorization | 401/403-shaped messages, `PermissionError` |
+| Authentication | 401-shaped messages, "unauthorized", "invalid credentials" |
+| Authorization | 403-shaped messages, `PermissionError`, "forbidden", "access denied" |
 | Configuration | `KeyError` mentioning env/config/setting |
 | Validation | `AssertionError`, `ValueError`, `*ValidationError` |
 | Programming Error | `IndexError`, `KeyError`, `NameError`, `ZeroDivisionError`, … |

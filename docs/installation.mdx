@@ -1,10 +1,10 @@
 ---
-title: "Installing Slomo in Your Python Project"
+title: "Installing Slomo: Requirements, pip, and Integrations"
 sidebarTitle: "Installation"
 description: "Install Slomo via pip, verify the install, and understand the Python 3.12+ requirement and optional integrations for requests, httpx, and SQLAlchemy."
 ---
 
-Slomo is distributed as a pure Python package on PyPI. It has no compiled extensions, no mandatory third-party dependencies, and no external services to configure — install it and you're done.
+Slomo is distributed as a pure Python package on PyPI. It has no compiled extensions, no external services to configure, and its only dependencies are `typer` and `rich`, which power the CLI and are installed automatically — install it and you're done.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ Slomo is distributed as a pure Python package on PyPI. It has no compiled extens
 | **Python version** | 3.12 or later (required for `sys.monitoring` / PEP 669) |
 | **License** | MIT |
 | **External services** | None — fully local |
-| **Mandatory dependencies** | None — Slomo ships with no required third-party packages |
+| **Mandatory dependencies** | `typer` and `rich` — installed automatically, power the CLI |
 
 <Note>
   Python 3.12 is a hard requirement. Slomo's instrumentation layer is built on `sys.monitoring`, the low-overhead monitoring API introduced in PEP 669 and only available from Python 3.12 onward. Earlier Python versions are not supported.
@@ -85,12 +85,17 @@ The first time you call `slomo.enable()` in your application, Slomo automaticall
 
 ```
 .slomo/
-├── config.toml        # present only if you ran `slomo init`
-└── sessions/
-    ├── <session-id>/
-    │   ├── metadata.json
-    │   └── timeline.jsonl
-    └── ...
+├── config.toml              # present only if you ran `slomo init`
+├── sessions/
+│   └── <timestamp>-<id>/
+│       ├── metadata.json
+│       ├── timeline.jsonl
+│       ├── snapshots/       # oversized variable captures
+│       └── attachments/
+├── issues/
+│   └── index.sqlite         # derived index, rebuildable
+├── exports/
+└── cache/
 ```
 
 <Note>

@@ -1,14 +1,15 @@
 ---
-title: "CLI overview"
-description: "The slomo command: every subcommand at a glance, plus the interactive shell."
+title: "Slomo CLI Reference: Commands and Interactive Shell"
+sidebarTitle: "CLI Overview"
+description: "Every slomo command at a glance — sessions, issues, doctor, replay, search, export, and the interactive shell with tab completion."
 icon: "terminal"
 ---
+
+The CLI is the entire user interface — there is no dashboard. It reads the local `.slomo/` directory of the project you run it in.
 
 ```
 slomo [OPTIONS] COMMAND [ARGS]...
 ```
-
-The CLI is the entire user interface — there is no dashboard. It reads the local `.slomo/` directory of the project you run it in.
 
 | Option | Effect |
 |---|---|
@@ -19,6 +20,7 @@ The CLI is the entire user interface — there is no dashboard. It reads the loc
 
 | Command | What it does |
 |---|---|
+| [`slomo init`](/installation#scaffold-a-configuration-file-with-slomo-init) | Scaffold `.slomo/` with a commented config before the first run |
 | [`slomo sessions`](/reference/cli/sessions) | List recorded sessions (newest last) |
 | [`slomo session show\|inspect\|delete`](/reference/cli/sessions) | Metadata, span tree, or deletion for one session |
 | [`slomo issues`](/reference/cli/issues) | Crashes grouped into issues |
@@ -42,7 +44,7 @@ Most commands take a **ref** argument that accepts either kind of identifier:
 
 ## The interactive shell
 
-Running `slomo` with no command opens an interactive shell with **history and tab completion** — the same commands, without retyping the prefix:
+Running `slomo` with no command and no piped input (i.e. when stdin is a TTY) opens an interactive shell with **history and tab completion** — the same commands, without retyping the prefix:
 
 ```console
 $ slomo

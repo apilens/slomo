@@ -1,8 +1,11 @@
 ---
-title: "doctor"
-description: "Heuristic root-cause diagnosis for an issue."
+title: "Slomo CLI: doctor — Root-Cause Diagnosis for Issues"
+sidebarTitle: "Doctor"
+description: "Run slomo doctor to get a heuristic root-cause report: category, severity, likely cause, first bad function and variable, and a suggested fix."
 icon: "stethoscope"
 ---
+
+`slomo doctor` walks the recorded timeline backwards from the crash and applies heuristics to produce a structured diagnosis. Pass the issue id to diagnose.
 
 ```
 slomo doctor REF
@@ -11,8 +14,6 @@ slomo doctor REF
 <ParamField path="REF" type="string" required>
   Issue id, e.g. `SM-1a2b3c4d`.
 </ParamField>
-
-The doctor walks the recorded timeline backwards from the crash and applies heuristics to produce a structured diagnosis:
 
 ```console
 $ slomo doctor SM-8b6f710a
@@ -34,12 +35,17 @@ Context just before the crash:
 | Field | Meaning |
 |---|---|
 | **Category** | Automatic [classification](/concepts/issues#classification) with its confidence score |
+| **Severity** | Inferred severity level of the issue |
+| **Status** | Current status and stability (e.g. `open / recurring`) |
 | **Occurrences** | Incident count, unhandled count, affected sessions |
+| **First seen** | Timestamp of the first recorded incident |
+| **Last seen** | Timestamp of the most recent incident |
 | **Likely root cause** | Where the exception was raised, and what the crash-site state implies |
 | **First bad function** | The earliest function in the trace where the failing value appeared |
 | **First bad variable** | The variable that was already wrong at the crash site |
 | **Suggested fix** | A heuristic suggestion — a starting point, not gospel |
 | **Context** | The SQL/HTTP/log events immediately before the crash — often the actual answer (above: the query returned 0 rows) |
+| **Related issues** | Other issues with similar fingerprints and their similarity scores |
 
 The diagnosis is built from the same captured data you can inspect yourself — crash-frame locals ([snapshots](/reference/cli/data-views)), spans, and the surrounding events. When the doctor's heuristic isn't enough, [replay](/reference/cli/replay) the same incident and rewind from the crash by hand.
 

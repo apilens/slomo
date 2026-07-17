@@ -1,6 +1,7 @@
 ---
-title: "Redaction and privacy"
-description: "Secrets are stripped at capture time — they never touch disk."
+title: "Redaction and Privacy — Secrets Never Touch Disk in Slomo"
+sidebarTitle: "Redaction"
+description: "Slomo redacts secrets at capture time. Built-in rules cover passwords, tokens, JWTs, AWS keys, and card numbers. Extend with extra_keys and extra_patterns."
 icon: "shield-halved"
 ---
 
@@ -12,9 +13,11 @@ Two independent detectors run on every captured value:
 
 ### 1. Key-based redaction
 
-Any value whose key looks secret is replaced, regardless of the value's content. The default key list covers the usual suspects:
+Any value whose key looks secret is replaced, regardless of the value's content. The full default key list is:
 
-`password`, `token`, `authorization`, `cookie`, `api_key`, `secret`, and similar variants — matched case-insensitively, wherever they appear: function kwargs, snapshot variables, HTTP headers, nested dict keys.
+`password`, `passwd`, `secret`, `token`, `api_key`, `apikey`, `api-key`, `authorization`, `auth`, `cookie`, `set-cookie`, `session_key`, `sessionid`, `private_key`, `access_key`, `jwt`, `bearer`, `credential`, `ssn`, `x-api-key`
+
+All matches are case-insensitive and apply wherever the key appears: function kwargs, snapshot variables, HTTP headers, nested dict keys.
 
 ```python
 snapshot("login", user="amit", password="hunter2")
@@ -27,7 +30,8 @@ Values that *look like* secrets are replaced even under innocent keys:
 
 - **JWTs** (`eyJ…` three-segment tokens)
 - **Bearer tokens** in header-shaped strings
-- **AWS access keys** (`AKIA…`)
+- **AWS access keys** (`AKIA…` / `ASIA…`)
+- **Long hex strings** — 40 or more consecutive hex characters (e.g. SHA-1 digests used as tokens)
 - **Luhn-valid card numbers** — a 16-digit string under a key called `note` still gets caught
 
 ```python
@@ -41,7 +45,7 @@ Extend redaction in `.slomo/config.toml`:
 
 ```toml
 [redaction]
-extra_keys = ["internal_id", "ssn"]
+extra_keys = ["internal_id", "employee_number"]
 extra_patterns = ["MYCO-[0-9]+"]
 # defaults = true
 ```

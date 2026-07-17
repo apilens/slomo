@@ -1,7 +1,7 @@
 ---
-title: "Get Started with Slomo in 5 Minutes"
+title: "Quickstart: Record and Replay Your First Python Crash"
 sidebarTitle: "Quickstart"
-description: "Install Slomo, add two lines to your Python app, run it, and explore your first crash recording with the terminal UI."
+description: "Install Slomo, add two lines to your Python app, trigger a crash, and explore the recording with the CLI — all in about five minutes, no account needed."
 ---
 
 This guide walks you through installing Slomo, wiring it into a Python app, and using the CLI to find and diagnose a real crash — all in about five minutes. You don't need an account, a running server, or any external infrastructure.
@@ -101,6 +101,10 @@ This guide walks you through installing Slomo, wiring it into a Python app, and 
     First bad function    checkout()
     First bad variable    inventory
     Suggested fix         Guard against None before the failing access at app.py:14
+                          — trace where the value is produced and handle the missing case.
+    Context just before the crash:
+      13:04:52.133 sql.query   SELECT sku, qty FROM inventory WHERE sku = ?
+      13:04:52.133 sql.result  0 rows, 9µs
     ```
 
     `slomo doctor` pinpoints the first function and variable that went wrong, explains why the crash happened, and suggests a fix — all from the local recording, with no network call.

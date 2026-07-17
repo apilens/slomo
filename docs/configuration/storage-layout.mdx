@@ -1,6 +1,7 @@
 ---
-title: "Storage layout"
-description: "What lives in .slomo/ — and what you can safely delete."
+title: "Slomo Storage Layout — The .slomo/ Directory Guide"
+sidebarTitle: "Storage Layout"
+description: "A guide to the .slomo/ directory: session files, JSONL event streams, snapshots, the rebuildable SQLite index, and what is safe to delete."
 icon: "folder-tree"
 ---
 
@@ -19,6 +20,7 @@ All slomo data lives in one directory, `.slomo/`, created next to your code on f
     index.sqlite                   # issue index — DERIVED, REBUILDABLE
   exports/                         # default output dir for `slomo export`
   cache/
+  plugins/
 ```
 
 ## The one rule: JSONL is truth, SQLite is cache
