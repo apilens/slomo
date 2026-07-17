@@ -1,0 +1,112 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "slomo",
+  "description": "The black box flight recorder for Python applications — record, replay, and diagnose crashes from your terminal.",
+  "colors": {
+    "primary": "#C2410C",
+    "light": "#FB923C",
+    "dark": "#EA580C"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "index",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/sessions-and-events",
+              "concepts/issues"
+            ]
+          },
+          {
+            "group": "Recording",
+            "pages": [
+              "recording/auto-tracing",
+              "recording/manual-instrumentation",
+              "recording/web-frameworks",
+              "recording/workers-and-async",
+              "recording/redaction"
+            ]
+          },
+          {
+            "group": "Investigating",
+            "pages": [
+              "investigating/issues-workflow",
+              "investigating/replay",
+              "investigating/search-and-timeline",
+              "investigating/exporting"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/config-toml",
+              "configuration/environment-variables",
+              "configuration/storage-layout"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Python API",
+            "pages": [
+              "reference/python-api"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "reference/cli/overview",
+              "reference/cli/sessions",
+              "reference/cli/issues",
+              "reference/cli/doctor",
+              "reference/cli/replay",
+              "reference/cli/timeline",
+              "reference/cli/search",
+              "reference/cli/data-views",
+              "reference/cli/export",
+              "reference/cli/maintenance"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/bhatt-neel-dev/slomo"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get started",
+      "href": "/quickstart"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/bhatt-neel-dev/slomo"
+    }
+  }
+}

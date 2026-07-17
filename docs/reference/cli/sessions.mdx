@@ -1,0 +1,79 @@
+---
+title: "sessions & session"
+description: "List runs; show metadata, span trees; delete recordings."
+icon: "list"
+---
+
+## `slomo sessions`
+
+List recorded sessions, newest last.
+
+```
+slomo sessions [OPTIONS]
+```
+
+| Option | Default | Effect |
+|---|---|---|
+| `--limit`, `-n` | `25` | Show at most N sessions |
+
+```console
+$ slomo sessions
+│ session   │ started            │ command          │ events │ exit    │
+│ a1b2c3d4  │ 2026-07-17 13:04   │ python app.py    │    214 │ crashed │
+│ e5f6a7b8  │ 2026-07-17 13:06   │ python app.py    │    198 │ ok      │
+```
+
+---
+
+## `slomo session show`
+
+Session metadata and event breakdown.
+
+```
+slomo session show REF
+```
+
+<ParamField path="REF" type="string" required>
+  Session id — any unique prefix is accepted.
+</ParamField>
+
+Shows the run's context (argv, cwd, python version, host, pid, exit status, labels, `forked_from` if applicable) and a count of events by type.
+
+---
+
+## `slomo session inspect`
+
+Span tree: tracked function calls with durations.
+
+```
+slomo session inspect REF
+```
+
+<ParamField path="REF" type="string" required>
+  Session id (prefix ok).
+</ParamField>
+
+Renders the call tree built from `function.enter`/`function.exit` spans — auto-traced and `@track`ed calls, nested by `parent_span_id`, each with its duration. The fastest way to see *what actually ran* and where the time went.
+
+---
+
+## `slomo session delete`
+
+Delete a recorded session (its whole directory: timeline, snapshots, attachments).
+
+```
+slomo session delete REF [--yes]
+```
+
+| Option | Effect |
+|---|---|
+| `--yes`, `-y` | Skip the confirmation prompt |
+
+<Warning>
+Deletion removes source-of-truth data. Incidents from the deleted session disappear from issues on the next index rebuild.
+</Warning>
+
+## See also
+
+- [Sessions and events](/concepts/sessions-and-events) — the data model
+- [`slomo prune`](/reference/cli/maintenance) — bulk deletion by retention policy

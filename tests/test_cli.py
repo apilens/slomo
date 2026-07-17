@@ -133,3 +133,36 @@ class TestCli:
 
     def test_version(self, recorded):
         assert "slomo" in _invoke("--version")
+
+
+class TestInit:
+    def test_creates_root_with_config(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SLOMO_HOME", raising=False)
+        out = _invoke("init", str(tmp_path))
+        assert "initialized" in out
+        root = tmp_path / ".slomo"
+        assert (root / "config.toml").is_file()
+        assert (root / "sessions").is_dir()
+        assert (root / ".gitignore").read_text().strip().endswith("*")
+
+    def test_idempotent(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SLOMO_HOME", raising=False)
+        _invoke("init", str(tmp_path))
+        marker = tmp_path / ".slomo" / "config.toml"
+        marker.write_text("# customized\n", encoding="utf-8")
+        out = _invoke("init", str(tmp_path))
+        assert "already initialized" in out
+        assert marker.read_text() == "# customized\n"  # never clobbers edits
+
+    def test_warns_when_parent_project_initialized(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SLOMO_HOME", raising=False)
+        _invoke("init", str(tmp_path))
+        child = tmp_path / "subdir"
+        child.mkdir()
+        out = _invoke("init", str(child))
+        assert "parent project is already initialized" in out
+        assert (child / ".slomo" / "config.toml").is_file()
+
+    def test_rejects_missing_directory(self, tmp_path):
+        result = runner.invoke(app, ["init", str(tmp_path / "nope")])
+        assert result.exit_code == 1

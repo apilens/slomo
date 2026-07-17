@@ -65,7 +65,9 @@ def diagnose(issue: Issue, index: IssueIndex, reader: EventReader) -> Diagnosis:
         else "?"
     )
     d.likely_root_cause = _root_cause_sentence(issue, latest, top)
-    fix = _FIX_TEMPLATES.get(issue.category, "Inspect the recorded replay: slomo replay " + issue.id)
+    fix = _FIX_TEMPLATES.get(
+        issue.category, "Inspect the recorded replay: slomo replay " + issue.id
+    )
     d.suggested_fix = fix.format(where=where)
 
     # Walk the incident's session for context: earliest tracked span in the

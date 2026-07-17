@@ -1,0 +1,178 @@
+---
+title: "Python API"
+description: "The complete public API: seven names, all importable from `slomo`."
+icon: "python"
+---
+
+The entire public API is deliberately small — everything is importable from the top-level package:
+
+```python
+from slomo import enable, disable, track, snapshot, event, install_hooks, flush
+import slomo
+slomo.__version__   # "0.1.0"
+```
+
+Every call is a **safe no-op when the recorder is inactive** — you can leave instrumentation in production code unconditionally.
+
+---
+
+## `enable()`
+
+```python
+def enable(
+    *,
+    root: str | Path | None = None,
+    labels: dict[str, str] | None = None,
+    hooks: bool = True,
+) -> None
+```
+
+Start recording this process. Idempotent — calling it twice does nothing the second time. Completes in under 5 ms (enforced by a test).
+
+<ParamField body="root" type="str | Path | None" default="None">
+  Where to place (or find) the `.slomo/` data directory. Defaults to auto-detection from the current working directory. The directory containing `.slomo/` becomes the **project root** — the boundary auto-tracing uses to decide what counts as project code.
+</ParamField>
+
+<ParamField body="labels" type="dict[str, str] | None" default="None">
+  Arbitrary key-value labels stored in the session's metadata, e.g. `labels={"service": "checkout", "env": "staging"}`. Visible in `slomo session show`.
+</ParamField>
+
+<ParamField body="hooks" type="bool" default="True">
+  Install the automatic hooks (auto-trace, exceptions, snapshots, SQL, HTTP, logging). With `hooks=False` only explicit `@track`/`snapshot()`/`event()` calls record.
+</ParamField>
+
+```python
+import slomo
+
+slomo.enable()                                        # typical
+slomo.enable(labels={"service": "worker"}, root="/srv/app")
+```
+
+---
+
+## `disable()`
+
+```python
+def disable() -> None
+```
+
+Stop recording and finalize the current session (writes `session.finished`, flushes, uninstalls hooks). Normally unnecessary — sessions finalize automatically at interpreter exit. Use it when a long-lived process wants to close its recording early.
+
+---
+
+## `track`
+
+```python
+@track
+def f(...): ...
+
+@track(capture_args=True, capture_result=True, name=None)
+def f(...): ...
+```
+
+Decorator recording a span per call: `function.enter` (args) and `function.exit` (result, `duration_ns`), with any escaping exception recorded and re-raised. Works on sync functions, async functions, generators, and async generators; span context propagates across `await`.
+
+<ParamField body="capture_args" type="bool" default="True">
+  Record positional and keyword arguments on enter.
+</ParamField>
+
+<ParamField body="capture_result" type="bool" default="True">
+  Record the return value on exit. (Results that are `None` are omitted.)
+</ParamField>
+
+<ParamField body="name" type="str | None" default="None">
+  Span label; defaults to the function's `__qualname__`.
+</ParamField>
+
+Functions carrying `@track` are registered so [auto-tracing](/recording/auto-tracing) never records them twice. When the recorder is disabled the wrapper short-circuits to the original function with near-zero overhead. Usage guide: [Manual instrumentation](/recording/manual-instrumentation).
+
+---
+
+## `snapshot()`
+
+```python
+def snapshot(label: str | None = None, /, **variables: Any) -> None
+```
+
+Record an explicit `variable.snapshot` event.
+
+<ParamField body="label" type="str | None" default="None">
+  Positional-only label shown in `slomo vars` and replay, e.g. `"before-retry"`.
+</ParamField>
+
+<ParamField body="variables" type="Any">
+  Keyword arguments to capture. Values pass through truncation and redaction before being written.
+</ParamField>
+
+```python
+snapshot("before-retry", user=user, attempt=n)
+```
+
+---
+
+## `event()`
+
+```python
+def event(name: str, /, severity: str = "info", **payload: Any) -> None
+```
+
+Record a `custom` event.
+
+<ParamField body="name" type="str" required>
+  Event name, e.g. `"cache.warmed"`. Searchable via `slomo search`.
+</ParamField>
+
+<ParamField body="severity" type="str" default="info">
+  One of `debug`, `info`, `warning`, `error`, `critical`. Unknown strings fall back to `info`. Severity `warning`+ appears in `slomo timeline --errors`.
+</ParamField>
+
+<ParamField body="payload" type="Any">
+  Arbitrary keyword payload, truncated and redacted like all captures.
+</ParamField>
+
+```python
+event("cache.warmed", entries=1042)
+event("payment.declined", severity="warning", user_id=uid)
+```
+
+---
+
+## `install_hooks()`
+
+```python
+def install_hooks() -> None
+```
+
+Re-run hook installation. The HTTP hooks attach to `requests`/`httpx` only if those modules are already imported — if you import one **after** `enable()`, call this to attach retroactively:
+
+```python
+import slomo
+slomo.enable()
+
+import httpx                 # imported late
+slomo.install_hooks()        # now httpx calls are recorded
+```
+
+No-op if the recorder is inactive. Already-installed hooks are not duplicated.
+
+---
+
+## `flush()`
+
+```python
+def flush() -> None
+```
+
+Block until every buffered event is on disk (with fsync). The writer thread normally flushes every 0.5 s and at exit; call this before exit paths that skip interpreter teardown (`os._exit()`, `exec*`) or before reading `.slomo/` from the same process.
+
+---
+
+## `__version__`
+
+```python
+slomo.__version__  # e.g. "0.1.0"
+```
+
+## Stability
+
+These seven names are the supported surface. Modules under `slomo._core` and other internals are private and may change without notice.

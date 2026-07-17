@@ -1,0 +1,95 @@
+---
+title: "Web frameworks"
+description: "FastAPI, Flask, and friends — one line, no middleware to write."
+icon: "server"
+---
+
+Web frameworks catch your exceptions and turn them into 500 responses before `sys.excepthook` ever sees them. That's exactly the failure mode slomo's [auto-tracing](/recording/auto-tracing) solves: the exception is recorded **the moment it escapes your handler function**, before the framework swallows it — with arguments, locals, and the SQL/HTTP calls that led up to it.
+
+The integration for every framework is the same line:
+
+```python
+import slomo
+
+slomo.enable()
+```
+
+## FastAPI
+
+```python
+from fastapi import FastAPI
+import slomo
+
+slomo.enable()   # that's the whole integration
+app = FastAPI()
+
+@app.get("/checkout/{sku}")
+async def checkout(sku: str):
+    ...
+```
+
+Call `enable()` at import time of your app module (before the routes run). With multiple workers (uvicorn/gunicorn), each worker process records its own session — forked children are labeled `forked_from` in their metadata.
+
+A 500 in the `checkout` route lands in `slomo issues` like any crash: fingerprinted, classified, with the route function's args (`sku`), its locals, and any database or HTTP activity from the request.
+
+<Tip>
+The repository's [`examples/fastapi_app.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/fastapi_app.py) is a complete runnable app showing lifespan integration, tracked async routes, per-request middleware events, and background-task failures.
+</Tip>
+
+## Flask
+
+```python
+from flask import Flask
+import slomo
+
+slomo.enable()
+app = Flask(__name__)
+
+@app.route("/checkout/<sku>")
+def checkout(sku):
+    ...
+```
+
+Same story: view functions are project code, so they're auto-traced; escaping exceptions are recorded before Flask converts them to error responses. See [`examples/flask_app.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/flask_app.py).
+
+## Per-request context
+
+Two useful patterns for request-scoped visibility:
+
+```python
+from slomo import event, snapshot
+
+@app.middleware("http")                       # FastAPI
+async def request_events(request, call_next):
+    event("request.started", method=request.method, path=request.url.path)
+    response = await call_next(request)
+    event("request.finished", status=response.status_code)
+    return response
+```
+
+```python
+snapshot("before-payment", user_id=user.id, cart_total=total)
+```
+
+Custom events make `slomo timeline` read like an access log interleaved with your traces, and `slomo search path=/checkout` finds every request to a route.
+
+## Diagnosing a production-shaped 500
+
+```console
+$ slomo issues                       # the 500 is an issue now
+$ slomo doctor SM-1a2b3c4d           # root-cause heuristic
+$ slomo timeline SM-1a2b3c4d         # the request: middleware events, SQL, the crash
+$ slomo http SM-1a2b3c4d             # outbound HTTP made during the request
+$ slomo replay SM-1a2b3c4d           # step through it
+```
+
+## Live-tailing during development
+
+Run your dev server in one terminal and follow the recording in another:
+
+```bash
+slomo timeline --follow          # live event feed of the running session
+slomo timeline --follow --errors # only warnings and errors
+```
+
+Every request, query, and warning streams by as it happens — a structured alternative to `print` debugging that you can search afterwards.

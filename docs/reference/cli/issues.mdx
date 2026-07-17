@@ -1,0 +1,118 @@
+---
+title: "issues & issue"
+description: "List grouped crashes; inspect, resolve, and reopen issues."
+icon: "bug"
+---
+
+## `slomo issues`
+
+Crashes grouped into issues. One issue = many identical incidents.
+
+```
+slomo issues [OPTIONS]
+```
+
+| Option | Effect |
+|---|---|
+| `--status <str>` | Filter: `open` or `resolved` |
+| `--category <str>` | Filter by [category](/concepts/issues#classification), e.g. `--category Timeout` |
+| `--all`, `-a` | Include resolved issues |
+
+```console
+$ slomo issues
+┃ issue        ┃ title                                      ┃ category       ┃ count ┃
+│ SM-8b6f710a  │ TypeError: 'NoneType' object is not subsc… │ Null Reference │     5 │
+```
+
+---
+
+## `slomo issue show`
+
+Full detail for one issue, including a sample traceback.
+
+```
+slomo issue show REF
+```
+
+<ParamField path="REF" type="string" required>
+  Issue id, e.g. `SM-1a2b3c4d`.
+</ParamField>
+
+Displays title, category + confidence, severity, status, stability, occurrences, first/last seen, affected sessions, the top frame, a sample traceback from a real incident, and any **possibly related** issues (similar fingerprints — surfaced, never auto-merged).
+
+---
+
+## `slomo issue occurrences`
+
+Every recorded incident of this issue.
+
+```
+slomo issue occurrences REF [--limit N]
+```
+
+| Option | Default | Effect |
+|---|---|---|
+| `--limit`, `-n` | `50` | Max incidents listed |
+
+Each row is one real crash: timestamp, session, handled/unhandled.
+
+---
+
+## `slomo issue timeline`
+
+Timeline of the latest incident's session, focused on its trace.
+
+```
+slomo issue timeline REF
+```
+
+Like [`slomo timeline`](/reference/cli/timeline), but pre-scoped: it selects the session of the most recent incident and highlights the events on the crashing trace.
+
+---
+
+## `slomo issue sessions`
+
+Sessions affected by this issue.
+
+```
+slomo issue sessions REF
+```
+
+---
+
+## `slomo issue resolve`
+
+Mark an issue resolved.
+
+```
+slomo issue resolve REF
+```
+
+**Auto-reopens** if the same fingerprint is ever recorded again — see [the issue lifecycle](/concepts/issues#lifecycle).
+
+---
+
+## `slomo issue reopen`
+
+Reopen a resolved issue manually.
+
+```
+slomo issue reopen REF
+```
+
+---
+
+## `slomo issue explain`
+
+One-paragraph explanation of the issue (doctor-lite).
+
+```
+slomo issue explain REF
+```
+
+A prose summary — what crashed, where, how often — sized for pasting into a ticket or a Slack message. For the full diagnosis, use [`slomo doctor`](/reference/cli/doctor).
+
+## See also
+
+- [How issues work](/concepts/issues) — fingerprinting, classification, lifecycle
+- [The investigation workflow](/investigating/issues-workflow)

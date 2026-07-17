@@ -1,0 +1,127 @@
+---
+title: "Manual instrumentation"
+description: "@track, snapshot(), and event() — for when you want more than automatic capture."
+icon: "pen-ruler"
+---
+
+[Auto-tracing](/recording/auto-tracing) covers project code automatically. The manual API is for the cases it can't infer: code outside your project root, custom capture control, explicit variable snapshots, and domain events.
+
+## `@track` — opt-in function spans
+
+```python
+from slomo import track
+
+@track
+def process_order(order_id):
+    ...
+```
+
+`@track` records the same span events as auto-trace (`function.enter` / `function.exit`, with args, result, duration, and escaping exceptions) — but explicitly, with per-function control:
+
+```python
+@track(capture_args=False)          # don't record arguments
+def authenticate(user, password): ...
+
+@track(capture_result=False)        # don't record the return value
+def load_giant_dataframe(): ...
+
+@track(name="billing.charge")       # custom span name (default: qualified name)
+def _charge_impl(amount): ...
+```
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `capture_args` | `True` | Record positional and keyword arguments on enter |
+| `capture_result` | `True` | Record the return value on exit |
+| `name` | function's `__qualname__` | Span label in timelines, inspect trees, and replay |
+
+### When to use it
+
+- **Code outside the project root** — auto-trace only covers files under the directory containing `.slomo/`. `@track` force-traces anything: shared internal libraries, vendored code, a hot third-party function you care about.
+- **Capture control** — keep the span but drop sensitive or oversized values for one specific function.
+- **Stable naming** — pin a span name that survives refactors.
+
+<Note>
+Functions carrying `@track` are **never double-recorded**: auto-trace registers tracked code objects and defers to the decorator.
+</Note>
+
+### Sync, async, and generators
+
+`@track` handles all four callable shapes transparently:
+
+```python
+@track
+async def fetch_profile(user_id): ...          # async function
+
+@track
+def paginate(cursor):                          # generator
+    yield ...
+
+@track
+async def stream_events():                     # async generator
+    yield ...
+```
+
+Spans open at the first call and close when the function (or generator) completes; exceptions raised mid-iteration are recorded and re-raised. Span context propagates across `await`, so child calls nest correctly in the trace tree.
+
+### Zero overhead when disabled
+
+When the recorder is not active, the wrapper short-circuits straight to your function — no span ids, no timestamps, effectively free. You can leave `@track` in production code unconditionally.
+
+## `snapshot()` — explicit variable capture
+
+```python
+from slomo import snapshot
+
+snapshot("before-retry", user=user, attempt=n, backoff=delay)
+```
+
+Records a `variable.snapshot` event with a label and any keyword arguments. Use it at decision points you'll want to see during [replay](/investigating/replay): before a retry, after a cache miss, at the top of a suspicious branch.
+
+The label is optional and positional-only:
+
+```python
+snapshot(order=order, total=total)     # unlabeled snapshot
+```
+
+Values pass through the same [truncation](/configuration/config-toml#recording) and [redaction](/recording/redaction) pipeline as everything else. View snapshots with `slomo vars`.
+
+<Tip>
+You get crash snapshots for free — when an unhandled exception occurs, slomo automatically captures local variables from the top frames of the crashing stack (default 5, `[hooks.snapshots] frames`). `snapshot()` is for the moments *before* things break.
+</Tip>
+
+## `event()` — custom domain events
+
+```python
+from slomo import event
+
+event("cache.warmed", entries=1042)
+event("payment.declined", severity="warning", user_id=uid, reason=reason)
+```
+
+Records a `custom` event with a name, an optional severity (`debug`, `info`, `warning`, `error`, `critical` — default `info`; unknown strings fall back to `info`), and any keyword payload.
+
+Custom events show up in `slomo timeline`, are searchable (`slomo search cache.warmed`), and severity `warning`+ appears under `slomo timeline --errors`. Use them for the domain milestones a debugger can't infer: job started, batch committed, feature flag evaluated.
+
+## Both are safe no-ops when recording is off
+
+Like `@track`, `snapshot()` and `event()` return immediately when the recorder is inactive. Instrument freely; the calls cost nothing unless slomo is enabled.
+
+## Full example
+
+```python
+import slomo
+from slomo import track, snapshot, event
+
+slomo.enable()
+
+@track(name="orders.fulfill")
+def fulfill(order):
+    event("fulfillment.started", order_id=order.id)
+    for attempt in range(3):
+        try:
+            return ship(order)
+        except TransientError:
+            snapshot("before-retry", order_id=order.id, attempt=attempt)
+    raise FulfillmentError(order.id)
+```

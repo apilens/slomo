@@ -1,0 +1,102 @@
+---
+title: "The investigation workflow"
+description: "From `slomo issues` to a fix: triage, diagnose, verify, resolve."
+icon: "magnifying-glass"
+---
+
+This is the day-to-day loop. Something crashed — maybe once on your machine, maybe fifty times across CI runs. Here's how to go from "something is wrong" to a fix, entirely in the terminal.
+
+## 1. Triage: `slomo issues`
+
+```console
+$ slomo issues
+┃ issue        ┃ title                                      ┃ category       ┃ count ┃
+│ SM-8b6f710a  │ TypeError: 'NoneType' object is not subsc… │ Null Reference │     5 │
+│ SM-2f91c04e  │ ConnectTimeout: timed out connecting to p… │ Timeout        │    12 │
+```
+
+One row per **bug**, not per crash — [fingerprinting](/concepts/issues) already collapsed the duplicates. Filter when the list grows:
+
+```bash
+slomo issues --category Timeout      # one category
+slomo issues --status resolved       # what's been fixed
+slomo issues --all                   # include resolved
+```
+
+Count, category, and stability tell you where to spend attention: a *recurring* Null Reference with 50 occurrences beats a *one-time* Unknown.
+
+## 2. Understand: `slomo issue show`
+
+```bash
+slomo issue show SM-8b6f710a
+```
+
+Full detail for the issue: title, category with confidence, severity, stability, first/last seen, affected sessions, a **sample traceback**, and possibly-related issues. For the incident-by-incident view:
+
+```bash
+slomo issue occurrences SM-8b6f710a   # every recorded incident, timestamped
+slomo issue sessions SM-8b6f710a      # which runs were affected
+```
+
+## 3. Diagnose: `slomo doctor`
+
+```console
+$ slomo doctor SM-8b6f710a
+Category              Null Reference  (95% confidence)
+Occurrences           5  (5 unhandled) across 5 session(s)
+Likely root cause     TypeError raised in checkout() at app.py:14.
+                      Variable 'inventory' was None at the crash site.
+First bad function    checkout()
+First bad variable    inventory
+Suggested fix         Guard against None before the failing access at app.py:14
+                      — trace where the value is produced and handle the missing case.
+Context just before the crash:
+  13:04:52.133 sql.query   SELECT sku, qty FROM inventory WHERE sku = ?
+  13:04:52.133 sql.result  0 rows, 9µs
+```
+
+The doctor walks the recorded timeline backwards from the crash and applies heuristics to name:
+
+- the **first bad function** — where the failing value entered the picture
+- the **first bad variable** — the value that was already wrong at the crash site
+- the **context** — the SQL/HTTP/log events immediately preceding the crash (above: the query returned 0 rows, which is *why* `inventory` was `None`)
+
+For a one-paragraph version — useful for pasting into a ticket — use `slomo issue explain SM-8b6f710a`.
+
+## 4. Dig deeper when the doctor isn't enough
+
+<CardGroup cols={2}>
+  <Card title="Replay" icon="clapperboard" href="/investigating/replay">
+    `slomo replay SM-8b6f710a` — step through the recorded execution event by event.
+  </Card>
+  <Card title="Timeline" icon="timeline" href="/investigating/search-and-timeline">
+    `slomo issue timeline SM-8b6f710a` — the latest incident's session, focused on its trace.
+  </Card>
+  <Card title="Typed views" icon="table" href="/reference/cli/data-views">
+    `slomo vars`, `slomo sql`, `slomo http` scoped to the issue.
+  </Card>
+  <Card title="Search" icon="magnifying-glass" href="/investigating/search-and-timeline">
+    `slomo search timeout module=checkout` across all sessions.
+  </Card>
+</CardGroup>
+
+## 5. Fix, verify, resolve
+
+Make the fix, run the app again, confirm the issue's count stopped growing, then:
+
+```bash
+slomo issue resolve SM-8b6f710a
+```
+
+Resolution is honest by design: if the same fingerprint ever appears again, the issue **auto-reopens**. You don't need to remember to check — a resurfaced bug puts itself back on the list. (`slomo issue reopen` exists for manual reopening.)
+
+## Sharing a diagnosis
+
+Hand a teammate the whole story without them installing anything:
+
+```bash
+slomo export markdown -i SM-8b6f710a     # paste into an issue tracker
+slomo export html -i SM-8b6f710a         # self-contained page
+```
+
+See [Exporting](/investigating/exporting).

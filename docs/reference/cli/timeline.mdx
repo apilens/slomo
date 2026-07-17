@@ -1,0 +1,42 @@
+---
+title: "timeline"
+description: "Chronological event feed for a session or an issue's latest incident."
+icon: "timeline"
+---
+
+```
+slomo timeline [REF] [OPTIONS]
+```
+
+<ParamField path="REF" type="string">
+  Session id (prefix ok), issue id, or empty for the latest session.
+</ParamField>
+
+| Option | Effect |
+|---|---|
+| `--follow`, `-f` | Live-tail a running session — new events print as they are written |
+| `--errors` | Only warnings and errors |
+
+```console
+$ slomo timeline
+13:04:52.130  function.enter   checkout(db=…, sku='gadget')
+13:04:52.133  sql.query        SELECT sku, qty FROM inventory WHERE sku = ?
+13:04:52.133  sql.result       0 rows, 9µs
+13:04:52.134  function.exception  TypeError: 'NoneType' object is not subscriptable
+```
+
+## Live-tailing
+
+`--follow` watches the newest session's `timeline.jsonl` and streams events as your app writes them — run your app in one terminal, the tail in another:
+
+```bash
+slomo timeline --follow            # everything, as it happens
+slomo timeline --follow --errors   # quiet until something goes wrong
+```
+
+Because the writer batches every 0.5 s, events appear with at most that much delay.
+
+## See also
+
+- [Search and timeline guide](/investigating/search-and-timeline)
+- `slomo issue timeline REF` — pre-scoped to an issue's latest incident ([reference](/reference/cli/issues#slomo-issue-timeline))

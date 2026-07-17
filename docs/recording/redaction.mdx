@@ -1,0 +1,91 @@
+---
+title: "Redaction and privacy"
+description: "Secrets are stripped at capture time — they never touch disk."
+icon: "shield-halved"
+---
+
+A flight recorder that captures arguments, locals, and HTTP traffic must take secrets seriously. slomo's answer is structural: redaction happens **at capture time, inside your process, before serialization** — so secret values never reach the queue, the writer thread, or the disk. There is no "scrub it later" step that can be forgotten.
+
+## What is redacted by default
+
+Two independent detectors run on every captured value:
+
+### 1. Key-based redaction
+
+Any value whose key looks secret is replaced, regardless of the value's content. The default key list covers the usual suspects:
+
+`password`, `token`, `authorization`, `cookie`, `api_key`, `secret`, and similar variants — matched case-insensitively, wherever they appear: function kwargs, snapshot variables, HTTP headers, nested dict keys.
+
+```python
+snapshot("login", user="amit", password="hunter2")
+# recorded as: {"user": "amit", "password": "[REDACTED]"}
+```
+
+### 2. Value-shape redaction
+
+Values that *look like* secrets are replaced even under innocent keys:
+
+- **JWTs** (`eyJ…` three-segment tokens)
+- **Bearer tokens** in header-shaped strings
+- **AWS access keys** (`AKIA…`)
+- **Luhn-valid card numbers** — a 16-digit string under a key called `note` still gets caught
+
+```python
+event("debug", note="4111 1111 1111 1111")
+# recorded as: {"note": "[REDACTED]"}
+```
+
+## Adding your own rules
+
+Extend redaction in `.slomo/config.toml`:
+
+```toml
+[redaction]
+extra_keys = ["internal_id", "ssn"]
+extra_patterns = ["MYCO-[0-9]+"]
+# defaults = true
+```
+
+| Key | Default | Effect |
+|---|---|---|
+| `extra_keys` | `[]` | Additional key names to redact (case-insensitive) |
+| `extra_patterns` | `[]` | Regular expressions; any matching value is redacted |
+| `defaults` | `true` | Set `false` to disable the built-in rules (not recommended) |
+
+<Warning>
+`defaults = false` turns off *all* built-in key and shape detection. Only do this if you're replacing it with a complete `extra_keys`/`extra_patterns` policy of your own.
+</Warning>
+
+## Belt and suspenders
+
+Redaction composes with capture controls when a whole value should never be recorded at all:
+
+- `@track(capture_args=False)` on functions that take sensitive parameters — see [Manual instrumentation](/recording/manual-instrumentation)
+- `capture_args = false` / `capture_results = false` under `[hooks.autotrace]` — see [Auto-tracing](/recording/auto-tracing)
+- `[hooks.sql] capture_params = false` (the default) — SQL statement text is recorded, bound parameters are **not**, unless you opt in
+
+## Verifying it yourself
+
+The repository ships a runnable proof: [`examples/redaction_demo.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/redaction_demo.py) records passwords, JWTs, AWS keys, and card numbers, then greps the raw JSONL to show none of them are present:
+
+```bash
+python examples/redaction_demo.py
+grep -r "hunter2" .slomo/   # no matches
+```
+
+Since timelines are plain JSONL, you can always audit exactly what was written:
+
+```bash
+cat .slomo/sessions/*/timeline.jsonl | grep -i password
+# every hit reads "[REDACTED]"
+```
+
+## The broader privacy posture
+
+- **No telemetry.** slomo phones home to nothing. There is no account, no upload, no analytics.
+- **Local-first.** All data lives in `.slomo/` in your project. Sharing is explicit — via [`slomo export`](/investigating/exporting) — and exports pass through the same already-redacted data.
+- **Bounded capture.** `max_value_repr`, `max_collection_items`, and `max_depth` limits mean even non-secret data is truncated, not exhaustively serialized.
+
+<Tip>
+Add `.slomo/` to `.gitignore`. Recordings are debugging artifacts, not source.
+</Tip>

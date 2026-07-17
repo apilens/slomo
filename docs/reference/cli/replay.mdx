@@ -1,0 +1,48 @@
+---
+title: "replay"
+description: "Step through a recorded execution in the terminal."
+icon: "clapperboard"
+---
+
+```
+slomo replay [REF] [OPTIONS]
+```
+
+<ParamField path="REF" type="string">
+  Issue id (`SM-xxxx`) or session id (prefix ok). Default: the latest session. An issue ref loads its latest incident's session.
+</ParamField>
+
+| Option | Effect |
+|---|---|
+| `--json` | Print events as JSON instead of interactive replay |
+| `--trace` | Print the whole timeline non-interactively |
+
+## Interactive commands
+
+Replay is a command loop — type a command, press Enter. No alternate screen or raw keypress capture, so it works over SSH and in `tmux`.
+
+| Command | Action |
+|---|---|
+| `n` \[N\] | next event (or N forward) |
+| `p` \[N\] | previous event (or N back) |
+| `j N` | jump to event N |
+| `t` | jump to next error |
+| `/text` | search forward |
+| `?text` | search backward |
+| `i` | inspect full payload of the current event |
+| `v` | show the variable snapshot linked to the current event |
+| `w` | context window of surrounding events |
+| `h` | help |
+| `q` | quit |
+
+## Non-interactive use
+
+```bash
+slomo replay SM-8b6f710a --trace                 # full timeline to stdout
+slomo replay a1b2c3 --json | jq '.type'          # machine-readable stream
+```
+
+## See also
+
+- [Replay guide](/investigating/replay) — a worked crash investigation
+- [`slomo timeline`](/reference/cli/timeline) — the non-interactive feed with live-tailing

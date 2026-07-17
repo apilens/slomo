@@ -1,0 +1,77 @@
+---
+title: "Auto-tracing"
+description: "Every function call in your project code, recorded with zero decorators."
+icon: "wand-magic-sparkles"
+---
+
+Auto-tracing is on by default. After `enable()`, slomo records **every function call in your project code** — enter, arguments, exit, result, duration, and any exception that escapes — with no decorators, no imports in your modules, no code changes beyond the one `enable()` call.
+
+```python
+import slomo
+
+slomo.enable()   # your whole app is now on tape
+```
+
+## How it works
+
+Auto-tracing is built on `sys.monitoring` (PEP 669), the low-overhead monitoring API introduced in Python 3.12 — the reason slomo requires 3.12+.
+
+**What counts as project code:** files under the directory containing `.slomo/` (your project root). Everything else — the standard library, `site-packages`, and slomo itself — is not just filtered; it is **switched off inside the interpreter** after its first call via PEP 669's per-code-object `DISABLE`, so foreign code costs effectively nothing after warm-up.
+
+For each project function call, slomo emits:
+
+| Event | Payload |
+|---|---|
+| `function.enter` | function, module, file, line, args, kwargs |
+| `function.exit` | function, duration_ns, result — or `outcome: "exception"` with the exception type |
+| `function.exception` | full structured traceback, when an exception escapes |
+
+## Why this matters for web frameworks
+
+Frameworks convert exceptions into 500 responses before `sys.excepthook` can see them. Auto-tracing records the exception **the moment it escapes your handler function** — so those 500s land in `slomo issues` with args, locals, and the SQL/HTTP calls that led up to them. See [Web frameworks](/recording/web-frameworks).
+
+## Tuning
+
+Configure under `[hooks.autotrace]` in `.slomo/config.toml`:
+
+```toml
+[hooks.autotrace]
+enabled = true
+capture_args = true
+capture_results = true
+# include = ["/opt/shared-lib/*"]      # trace extra paths outside the project
+# exclude = ["*/generated/*"]          # skip noisy project paths
+```
+
+| Key | Default | Effect |
+|---|---|---|
+| `enabled` | `true` | Master switch for auto-tracing |
+| `capture_args` | `true` | Record call arguments on `function.enter` |
+| `capture_results` | `true` | Record return values on `function.exit` |
+| `include` | `[]` | Glob patterns for **extra** paths to trace beyond the project root |
+| `exclude` | `[]` | Glob patterns for project paths to skip |
+
+Kill it entirely for one run with an environment variable:
+
+```bash
+SLOMO_AUTOTRACE=0 python app.py
+```
+
+<Tip>
+`capture_args = false` / `capture_results = false` keep the call tree and durations while dropping the values — useful when values are large or sensitive beyond what [redaction](/recording/redaction) covers.
+</Tip>
+
+## Interaction with `@track`
+
+Functions decorated with [`@track`](/recording/manual-instrumentation) are **never recorded twice**. Tracked code objects are registered by identity, and auto-trace defers to the decorator — so you can freely mix the two:
+
+- Use **auto-trace** for blanket coverage of project code.
+- Use **`@track`** to force-trace code *outside* the project root (a shared internal library, for example), or to take control of capture per function (`capture_args=False`, a custom span `name`, …).
+
+## Overhead notes
+
+- Foreign code (stdlib, dependencies) is disabled at the interpreter level after first hit — near-zero steady-state cost.
+- Project-code events go through the same lock-free queue as everything else; the writer thread batches to disk off your critical path.
+- Value capture is bounded by the [`recording` limits](/configuration/config-toml#recording) (`max_value_repr`, `max_collection_items`, `max_depth`), so a huge object graph can't bloat your timeline.
+
+For hot loops where even bounded capture is too much, `exclude` the module, or set `capture_args`/`capture_results` to `false` globally and re-enable per function with `@track`.

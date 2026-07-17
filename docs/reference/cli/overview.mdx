@@ -1,0 +1,57 @@
+---
+title: "CLI overview"
+description: "The slomo command: every subcommand at a glance, plus the interactive shell."
+icon: "terminal"
+---
+
+```
+slomo [OPTIONS] COMMAND [ARGS]...
+```
+
+The CLI is the entire user interface — there is no dashboard. It reads the local `.slomo/` directory of the project you run it in.
+
+| Option | Effect |
+|---|---|
+| `--version` | Show version and exit |
+| `--help` | Show help (works on every subcommand) |
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| [`slomo sessions`](/reference/cli/sessions) | List recorded sessions (newest last) |
+| [`slomo session show\|inspect\|delete`](/reference/cli/sessions) | Metadata, span tree, or deletion for one session |
+| [`slomo issues`](/reference/cli/issues) | Crashes grouped into issues |
+| [`slomo issue show\|occurrences\|timeline\|sessions\|resolve\|reopen\|explain`](/reference/cli/issues) | Inspect and manage one issue |
+| [`slomo doctor`](/reference/cli/doctor) | Heuristic root-cause diagnosis for an issue |
+| [`slomo replay`](/reference/cli/replay) | Step through a recorded execution |
+| [`slomo timeline`](/reference/cli/timeline) | Chronological event feed; `--follow` live-tails |
+| [`slomo search`](/reference/cli/search) | Full-text + field-filter search across sessions |
+| [`slomo vars` / `http` / `sql`](/reference/cli/data-views) | Typed views over a session or issue |
+| [`slomo export`](/reference/cli/export) | Export a session or issue to JSON/Markdown/CSV/HTML |
+| [`slomo stats`](/reference/cli/maintenance) | Totals and storage; `--rebuild-index` |
+| [`slomo prune`](/reference/cli/maintenance) | Delete the oldest sessions beyond retention |
+
+## Reference conventions
+
+Most commands take a **ref** argument that accepts either kind of identifier:
+
+- **Issue ids** look like `SM-8b6f710a` (`SM-` + first 8 hex chars of the fingerprint).
+- **Session ids** accept any unique **prefix** — `slomo session show a1b2` works.
+- Commands whose ref is optional (`replay`, `timeline`, `vars`, `http`, `sql`) default to the **latest session**.
+
+## The interactive shell
+
+Running `slomo` with no command opens an interactive shell with **history and tab completion** — the same commands, without retyping the prefix:
+
+```console
+$ slomo
+slomo> issues
+slomo> doctor SM-8b6f710a
+slomo> replay SM-8b6f710a
+slomo> quit
+```
+
+## Exit behavior
+
+The CLI is read-only over your recordings except where explicitly destructive (`session delete`, `prune` — both prompt unless `--yes`) or state-changing (`issue resolve`/`reopen`, `stats --rebuild-index`).

@@ -1,0 +1,88 @@
+---
+title: "Search and timeline"
+description: "Slice recorded history: full-text search, field filters, and live-tailing."
+icon: "timeline"
+---
+
+Replay is for depth; search and timeline are for breadth — finding the needle across sessions, or watching events stream by as your app runs.
+
+## `slomo timeline` — the chronological feed
+
+```bash
+slomo timeline                    # latest session
+slomo timeline a1b2c3             # a specific session (prefix ok)
+slomo timeline SM-8b6f710a        # an issue → its latest incident's session
+```
+
+Each line is one event: timestamp, type, and a summary of the payload.
+
+```console
+$ slomo timeline
+13:04:52.130  function.enter   checkout(db=…, sku='gadget')
+13:04:52.131  function.enter   load_inventory(db=…, sku='gadget')
+13:04:52.133  sql.query        SELECT sku, qty FROM inventory WHERE sku = ?
+13:04:52.133  sql.result       0 rows, 9µs
+13:04:52.134  function.exception  TypeError: 'NoneType' object is not subscriptable
+```
+
+### Flags
+
+| Flag | Effect |
+|---|---|
+| `--follow`, `-f` | **Live-tail** a running session — new events stream as they're written |
+| `--errors` | Only warnings and errors |
+
+Live-tailing is the development superpower: run your app in one terminal, `slomo timeline --follow` in another, and every request, query, and warning scrolls by in real time — structured, and searchable afterwards.
+
+```bash
+slomo timeline --follow --errors     # a quiet terminal until something goes wrong
+```
+
+## `slomo search` — everything, everywhere
+
+```bash
+slomo search timeout                          # full-text, across all sessions
+slomo search "connection refused" -n 100      # more results (default limit 50)
+```
+
+Free-text search runs against a full-text index (SQLite FTS5) over event payloads — fast even with hundreds of sessions.
+
+### Field filters
+
+Combine free text with `field=value` filters:
+
+```bash
+slomo search module=checkout                  # events from one module
+slomo search timeout module=checkout user=42  # text + multiple fields
+slomo search type=sql session=a1b2            # SQL events in one session
+slomo search method=POST status=500           # failed POSTs
+```
+
+| Field | Matches |
+|---|---|
+| `module` | module that produced a function event |
+| `function` (alias `fn`) | function name |
+| `type` | event type, substring match — `type=sql` hits `sql.query` and `sql.result` |
+| `session` | session id prefix |
+| `logger` | logger name of a log event |
+| `url`, `method`, `status` | HTTP events |
+| `user`, `host`, anything else | matched against payload keys, **including nested ones** |
+
+Field matching is case-insensitive substring matching, and unknown field names are looked up recursively inside payloads — so if your `event()` calls include `order_id=…`, then `slomo search order_id=1042` just works.
+
+<Note>
+Pure-text queries use the FTS index. Queries with field filters stream the JSONL timelines directly (newest sessions first) — thorough, and still quick at the default limit.
+</Note>
+
+## From a hit to the story
+
+Search results include the session and event; from there:
+
+```bash
+slomo timeline a1b2c3          # see the hit in context
+slomo replay a1b2c3            # then scrub around it, j N to jump to the event
+```
+
+## Typed views
+
+When you already know *what kind* of thing you're looking for, skip search and use the typed views — `slomo vars`, `slomo http`, `slomo sql` — scoped to a session or an issue. See [CLI: data views](/reference/cli/data-views).

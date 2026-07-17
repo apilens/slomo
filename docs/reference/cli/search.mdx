@@ -1,0 +1,50 @@
+---
+title: "search"
+description: "Full-text search plus field=value filters across all sessions."
+icon: "magnifying-glass"
+---
+
+```
+slomo search TERMS... [OPTIONS]
+```
+
+<ParamField path="TERMS" type="string" required>
+  Free text and/or `field=value` filters, mixed freely.
+</ParamField>
+
+| Option | Default | Effect |
+|---|---|---|
+| `--limit`, `-n` | `50` | Max hits returned |
+
+## Examples
+
+```bash
+slomo search timeout                          # full text, all sessions
+slomo search "connection refused" -n 100
+slomo search module=checkout                  # field filter
+slomo search timeout module=checkout user=42  # text + fields
+slomo search type=sql session=a1b2            # SQL events in one session
+slomo search method=POST status=500           # failed POSTs
+```
+
+## Fields
+
+| Field | Matches against |
+|---|---|
+| `module` | producing module of a function event |
+| `function` / `fn` | function name |
+| `type` | event type (substring: `type=sql` hits `sql.query` and `sql.result`) |
+| `session` | session id prefix |
+| `logger` | logger name |
+| `url`, `method`, `status` | HTTP event payloads |
+| `user`, `host` | payload keys |
+| *anything else* | looked up recursively in payloads — custom keys from your `event()` calls work |
+
+Matching is case-insensitive substring matching. Multiple fields AND together.
+
+## How it executes
+
+- **Pure text** queries run against the SQLite FTS5 index — fast at any history size.
+- Queries **with field filters** stream the JSONL timelines directly, newest session first, stopping at the limit.
+
+Results show the event id, session, type, timestamp, and a snippet; follow up with `slomo timeline <session>` or `slomo replay <session>` to see a hit in context.

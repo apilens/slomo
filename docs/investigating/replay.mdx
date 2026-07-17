@@ -1,0 +1,82 @@
+---
+title: "Replay"
+description: "Step through a recorded execution, event by event, in your terminal."
+icon: "clapperboard"
+---
+
+Replay is the payoff of recording everything: instead of reproducing a bug, you scrub through what actually happened — every function call, query, log line, and variable, in order, after the fact.
+
+```bash
+slomo replay SM-8b6f710a      # replay an issue's crash
+slomo replay a1b2c3           # replay a session (id prefix ok)
+slomo replay                  # default: the latest session
+```
+
+When given an **issue id**, replay loads the latest incident's session and positions you in the recorded execution — press <kbd>t</kbd> to jump straight to the error. When given a **session id**, it starts at the beginning of that run.
+
+## Commands
+
+Replay is a command loop (type a command, press Enter). Type <kbd>h</kbd> anytime for this list:
+
+| Command | Action |
+|---|---|
+| `n` \[N\] | next event — or N events forward (`n 10`) |
+| `p` \[N\] | previous event — or N back |
+| `j N` | jump to event number N |
+| `t` | jump to the **next error** |
+| `/text` | search forward for text |
+| `?text` | search backward |
+| `i` | inspect the current event's **full payload** |
+| `v` | show the **variable snapshot linked** to the current event |
+| `w` | show a context window of surrounding events |
+| `h` | help |
+| `q` | quit |
+
+## A typical crash investigation
+
+```console
+$ slomo replay SM-8b6f710a
+slomo replay — 214 events. Type h for help.
+
+> t                                  # jump to the error
+[187] 13:04:52.134  function.exception  TypeError: 'NoneType' object …
+
+> v                                  # locals at the crash
+inventory = None
+sku       = 'gadget'
+db        = <sqlite3.Connection>
+
+> p 3                                # rewind: what led here?
+[184] 13:04:52.133  sql.query   SELECT sku, qty FROM inventory WHERE sku = ?
+
+> n                                  # step forward
+[185] 13:04:52.133  sql.result  0 rows, 9µs                 ← the smoking gun
+
+> /checkout                          # find where checkout was entered
+[180] 13:04:52.132  function.enter  checkout(db=…, sku='gadget')
+
+> i                                  # full payload of the current event
+{ "function": "checkout", "module": "app", "file": "app.py", "line": 13,
+  "args": ["<sqlite3.Connection>"], "kwargs": {"sku": "gadget"} }
+```
+
+The rhythm: <kbd>t</kbd> to the crash, <kbd>v</kbd> for the state, then **rewind** to find where the bad value was produced. Time flows both ways here — that's the point.
+
+## Non-interactive modes
+
+For scripts, CI logs, or piping to other tools:
+
+```bash
+slomo replay SM-8b6f710a --trace     # print the whole timeline, non-interactively
+slomo replay SM-8b6f710a --json      # events as JSON — jq-friendly
+```
+
+```bash
+slomo replay a1b2c3 --json | jq 'select(.type == "sql.query") | .payload.sql'
+```
+
+## Notes
+
+- Replay works on the **recorded** timeline — it re-executes nothing. It is always safe to replay production recordings.
+- Oversized variable captures are stored as snapshot files and loaded on demand when you press <kbd>v</kbd>.
+- No raw-keypress capture or alternate screen: replay works over SSH, in dumb terminals, and inside `tmux` without surprises.

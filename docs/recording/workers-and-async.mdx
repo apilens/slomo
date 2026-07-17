@@ -1,0 +1,89 @@
+---
+title: "Workers and async"
+description: "Background threads, asyncio pipelines, and multi-process apps."
+icon: "arrows-spin"
+---
+
+The bugs that hurt most are the ones nobody sees: a worker thread that dies silently, a background task whose exception is logged nowhere, a forked child that crashes without a traceback on your terminal. slomo records all of them.
+
+## Worker threads
+
+Python threads don't share the main thread's excepthook — an uncaught exception in a `threading.Thread` normally prints to stderr (if you're lucky) and vanishes. slomo hooks thread exceptions and **unraisable errors**, so worker crashes become first-class incidents:
+
+```python
+import threading
+import slomo
+
+slomo.enable()
+
+def poll_queue():
+    while True:
+        job = queue.get()
+        handle(job)          # a crash here is recorded, with locals
+
+threading.Thread(target=poll_queue, daemon=True).start()
+```
+
+The crash appears in `slomo issues` with its traceback and captured frame locals — same as a main-thread crash. See [`examples/background_worker.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/background_worker.py) for a complete runnable demo of worker-thread crashes you'd otherwise never see.
+
+Events from all threads flow into the same session timeline, ordered by timestamp.
+
+## asyncio
+
+Auto-tracing and `@track` both handle coroutines, and **span context propagates across `await`** — so concurrent tasks produce correctly-nested traces rather than an interleaved soup:
+
+```python
+import asyncio
+import slomo
+from slomo import track
+
+slomo.enable()
+
+@track
+async def fetch(url): ...
+
+@track
+async def pipeline(urls):
+    return await asyncio.gather(*(fetch(u) for u in urls))
+```
+
+`slomo session inspect` renders each `fetch` as a child span of `pipeline`, with per-call durations, even though they ran concurrently. Async generators, retries, and exception paths are all recorded; [`examples/async_pipeline.py`](https://github.com/bhatt-neel-dev/slomo/blob/main/examples/async_pipeline.py) exercises all of them.
+
+Exceptions inside tasks are recorded when they escape your coroutine — including tasks whose results are never awaited (those surface as unraisable errors).
+
+## Multiple processes
+
+The rule: **one session per process**, one writer per session directory. There is no cross-process locking, because there is no shared mutable state.
+
+- Each process that calls `enable()` (or inherits an enabled recorder through `fork`) records its own session.
+- Forked children automatically start a fresh session labeled with `forked_from: <parent session id>` in their metadata.
+- Gunicorn/uvicorn workers, `multiprocessing` pools, and cron subprocesses all just work — run `slomo sessions` and you'll see one session per worker.
+
+```console
+$ slomo sessions
+│ a1b2c3…  14:02:11  python -m gunicorn app:app   … │
+│ d4e5f6…  14:02:11  forked_from=a1b2c3            … │
+│ 78a9bc…  14:02:11  forked_from=a1b2c3            … │
+```
+
+Issues aggregate **across** sessions: five workers hitting the same bug produce one issue with `affected_sessions: 5`, and `slomo issue sessions SM-…` lists them.
+
+## Shutdown and flushing
+
+The writer thread batches events every 0.5 s, and slomo finalizes the session at interpreter exit. Two cases deserve an explicit call:
+
+```python
+import slomo
+
+slomo.flush()      # block until all buffered events are on disk
+slomo.disable()    # stop recording and finalize the session now
+```
+
+- **`flush()`** — call before `os._exit()`, `exec*`, or any exit path that skips normal interpreter teardown.
+- **`disable()`** — call when a long-lived process wants to close its session early (e.g. at the end of a batch job inside a persistent worker).
+
+Crashes don't need either: the exception path fsyncs before the process dies.
+
+<Note>
+Retention is per-store, not per-process: `retention_max_sessions` (default 200) bounds the total number of stored sessions, so a busy multi-worker app naturally prunes its history. See [`slomo prune`](/reference/cli/maintenance).
+</Note>

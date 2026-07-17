@@ -1,0 +1,124 @@
+---
+title: "Quickstart"
+description: "Record, diagnose, and replay your first crash in 60 seconds."
+icon: "rocket"
+---
+
+<Steps>
+  <Step title="Install slomo">
+    ```bash
+    pip install slomo
+    ```
+
+    Requires Python 3.12 or later. See [Installation](/installation) for details.
+  </Step>
+
+  <Step title="Enable recording">
+    Add two lines to your application's entry point:
+
+    ```python
+    import slomo
+
+    slomo.enable()
+    ```
+
+    From this moment, every function call in your project code, every SQL query, HTTP call, warning-level log, and unhandled exception is recorded to `.slomo/` — automatically.
+  </Step>
+
+  <Step title="Run an app with a bug">
+    Save this as `app.py`. It has a classic bug: a lookup that can return `None`.
+
+    ```python app.py
+    import sqlite3
+    import slomo
+    from slomo import track
+
+    slomo.enable()
+
+    @track
+    def load_inventory(db, sku):
+        return db.execute(
+            "SELECT sku, qty FROM inventory WHERE sku = ?", (sku,)
+        ).fetchone()
+
+    @track
+    def checkout(db, sku):
+        inventory = load_inventory(db, sku)
+        return {"sku": inventory[0], "qty": inventory[1]}   # BUG: inventory can be None
+
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE inventory (sku TEXT PRIMARY KEY, qty INTEGER)")
+    db.execute("INSERT INTO inventory VALUES ('widget', 5)")
+    checkout(db, "widget")   # works
+    checkout(db, "gadget")   # crashes
+    ```
+
+    Run it a few times:
+
+    ```bash
+    python app.py
+    python app.py
+    python app.py
+    ```
+  </Step>
+
+  <Step title="See the crash, grouped into one issue">
+    ```console
+    $ slomo issues
+    ┃ issue        ┃ title                                      ┃ category       ┃ count ┃
+    │ SM-8b6f710a  │ TypeError: 'NoneType' object is not subsc… │ Null Reference │     3 │
+    ```
+
+    Three runs, three crashes — **one issue**. slomo fingerprints crashes so identical bugs are deduplicated, not repeated. See [How issues work](/concepts/issues).
+  </Step>
+
+  <Step title="Ask the doctor">
+    ```console
+    $ slomo doctor SM-8b6f710a
+    Category              Null Reference  (95% confidence)
+    Occurrences           3  (3 unhandled) across 3 session(s)
+    Likely root cause     TypeError raised in checkout() at app.py:16.
+                          Variable 'inventory' was None at the crash site.
+    First bad function    checkout()
+    First bad variable    inventory
+    Suggested fix         Guard against None before the failing access at app.py:16
+                          — trace where the value is produced and handle the missing case.
+    Context just before the crash:
+      13:04:52.133 sql.query   SELECT sku, qty FROM inventory WHERE sku = ?
+      13:04:52.133 sql.result  0 rows, 9µs
+    ```
+
+    The doctor already saw what happened: the SQL query returned **0 rows**, `inventory` became `None`, and the subscript at line 16 blew up.
+  </Step>
+
+  <Step title="Replay the crash">
+    ```bash
+    slomo replay SM-8b6f710a
+    ```
+
+    This opens an interactive step-through of the recorded execution: press <kbd>n</kbd>/<kbd>p</kbd> to step, <kbd>t</kbd> to jump to the next error, <kbd>i</kbd> to inspect the full event payload, and <kbd>v</kbd> to see captured variables. See [Replay](/investigating/replay) for all the commands.
+  </Step>
+</Steps>
+
+## What just happened?
+
+You never added logging, never set a breakpoint, and never reproduced anything. The flight recorder captured:
+
+- The `checkout()` and `load_inventory()` calls with their **arguments and results**
+- The SQL query and its **row count and duration**
+- The `TypeError` with a structured traceback and the **local variables of the crashing frames**
+
+<Tip>
+The `@track` decorators above are optional — [auto-tracing](/recording/auto-tracing) records project-code function calls without any decorators. Use `@track` for code outside your project root or to take control of argument/result capture.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Use it with FastAPI or Flask" icon="server" href="/recording/web-frameworks">
+    One line, no middleware to write.
+  </Card>
+  <Card title="Learn the investigation workflow" icon="magnifying-glass" href="/investigating/issues-workflow">
+    From `slomo issues` to a fix.
+  </Card>
+</CardGroup>

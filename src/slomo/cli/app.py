@@ -124,6 +124,53 @@ def _main_callback(
             console.print(ctx.get_help())
 
 
+# ---------- init ----------
+
+
+@app.command("init")
+def init(
+    directory: Path = typer.Argument(
+        None, help="Project directory to set up (default: current directory)."
+    ),
+) -> None:
+    """Set up slomo in a project: create .slomo/ with a commented config.
+
+    Optional — ``enable()`` creates everything on first run anyway — but
+    handy when you want to tweak redaction or auto-trace settings first.
+    """
+    target = (directory or Path.cwd()).resolve()
+    if not target.is_dir():
+        err_console.print(f"[red]not a directory: {target}[/]")
+        raise typer.Exit(1)
+
+    root = target / paths.ROOT_DIR_NAME
+    existing = paths.find_root(target)
+    if existing is not None and existing != root:
+        console.print(
+            f"[yellow]note:[/] a parent project is already initialized at {existing.parent}\n"
+            f"      recordings made under {target} would land there unless you init here too."
+        )
+
+    already = root.is_dir()
+    paths.initialize_root(root)
+
+    lines = Text()
+    lines.append(
+        ("already initialized — left as is\n\n" if already else "initialized\n\n"),
+        style="bold green" if not already else "bold yellow",
+    )
+    lines.append(f"config     {root / 'config.toml'}\n", style="dim")
+    lines.append("           redaction rules, auto-trace include/exclude, retention\n", style="dim")
+    lines.append("recordings self-ignored from git — nothing to add to .gitignore\n\n", style="dim")
+    lines.append("Add two lines to your app:\n\n", style="bold")
+    lines.append("    import slomo\n    slomo.enable()\n\n", style="cyan")
+    lines.append("Then run it and explore:\n\n", style="bold")
+    lines.append("    slomo issues     crashes, deduplicated\n", style="cyan")
+    lines.append("    slomo doctor     root-cause diagnosis\n", style="cyan")
+    lines.append("    slomo replay     step through what happened\n", style="cyan")
+    console.print(Panel(lines, title="slomo", border_style="green", expand=False))
+
+
 # ---------- sessions ----------
 
 
@@ -313,7 +360,9 @@ def issue_show(ref: str = typer.Argument(help="Issue id, e.g. SM-1a2b3c4d.")) ->
         console.print("[bold]possibly related:[/]")
         for other, score in related:
             console.print(f"  {other.id}  {other.title[:70]}  [dim]{score:.0%} similar[/]")
-    console.print(f"[dim]replay it:  slomo replay {issue.id}    diagnose:  slomo doctor {issue.id}[/]")
+    console.print(
+        f"[dim]replay it:  slomo replay {issue.id}    diagnose:  slomo doctor {issue.id}[/]"
+    )
 
 
 @issue_app.command("occurrences")

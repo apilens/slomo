@@ -1,0 +1,124 @@
+---
+title: "config.toml"
+description: "Full reference for .slomo/config.toml — recording limits, hooks, redaction, retention."
+icon: "sliders"
+---
+
+slomo writes a commented default `config.toml` into `.slomo/` on first run. Everything works with no edits; this page documents every knob.
+
+```toml .slomo/config.toml (defaults)
+[recording]
+enabled = true
+max_value_repr = 2048
+max_payload_bytes = 65536
+max_collection_items = 25
+flush_interval_s = 0.5
+
+[storage]
+retention_max_sessions = 200
+
+[redaction]
+# extra_keys = ["internal_id"]
+# extra_patterns = ["MYCO-[0-9]+"]
+# defaults = true
+
+[hooks.http]
+enabled = true
+
+[hooks.sql]
+enabled = true
+capture_params = false
+
+[hooks.logging]
+enabled = true
+level = "WARNING"
+
+[hooks.snapshots]
+enabled = true
+frames = 5
+
+[hooks.autotrace]
+# Records every function call in project code automatically (sys.monitoring).
+enabled = true
+capture_args = true
+capture_results = true
+# include = ["/opt/shared-lib/*"]      # trace extra paths outside the project
+# exclude = ["*/generated/*"]          # skip noisy project paths
+```
+
+Environment variables override the file — see [Environment variables](/configuration/environment-variables). A malformed file is ignored (defaults apply); slomo never crashes your app over config.
+
+## `[recording]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Master switch. `false` makes `enable()` a no-op. |
+| `max_value_repr` | `2048` | Max characters kept from any single captured value's repr |
+| `max_payload_bytes` | `65536` | Max serialized size of one event payload; larger captures spill to `snapshots/` |
+| `max_collection_items` | `25` | Max items captured from a list/dict/set before truncation |
+| `max_depth` | `4` | Max nesting depth when serializing object graphs |
+| `flush_interval_s` | `0.5` | How often the writer thread flushes batched events to disk |
+| `queue_max` | `10000` | In-process event queue size; when full, low-severity events are dropped (never blocks) |
+
+These bounds are the reason auto-tracing can capture args and results by default without bloating timelines: values are truncated *structurally* at capture, not after the fact.
+
+## `[storage]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `retention_max_sessions` | `200` | Sessions kept before [`slomo prune`](/reference/cli/maintenance) deletes the oldest |
+
+## `[redaction]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `extra_keys` | `[]` | Additional key names whose values are always redacted |
+| `extra_patterns` | `[]` | Regexes; matching values are redacted regardless of key |
+| `defaults` | `true` | The built-in rules (password/token/… keys; JWT/AWS/card-shaped values) |
+
+Details and examples: [Redaction and privacy](/recording/redaction).
+
+## `[hooks.http]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Record `requests` and `httpx` request/response pairs |
+
+## `[hooks.sql]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Record `sqlite3` and SQLAlchemy queries/results |
+| `capture_params` | `false` | Also record bound parameters (off by default — parameters are where the PII lives) |
+
+## `[hooks.logging]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Record `logging` records as events |
+| `level` | `"WARNING"` | Minimum level recorded |
+
+## `[hooks.snapshots]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Capture local variables from crashing stack frames |
+| `frames` | `5` | How many frames (from the top of the crash) get their locals captured |
+
+## `[hooks.autotrace]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Auto-trace every project-code function call |
+| `capture_args` | `true` | Record arguments on `function.enter` |
+| `capture_results` | `true` | Record return values on `function.exit` |
+| `include` | `[]` | Globs for extra paths to trace beyond the project root |
+| `exclude` | `[]` | Globs for project paths to skip |
+
+Semantics and tuning advice: [Auto-tracing](/recording/auto-tracing).
+
+## `[hooks]` (top level)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `unraisable` | `true` | Record unraisable errors (e.g. exceptions in `__del__`, un-awaited task failures) |

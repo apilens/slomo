@@ -1,0 +1,326 @@
+- generic [ref=e4]:
+  - generic [ref=e8]:
+    - generic [ref=e11]:
+      - link "slomo home page light logo" [ref=e13] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e14]: slomo home page
+        - img "light logo" [ref=e15]
+      - button "Open search" [ref=e17] [cursor=pointer]:
+        - generic [ref=e18]: Search...
+        - generic [ref=e23]: ⌘K
+      - generic [ref=e24]:
+        - navigation [ref=e25]:
+          - list [ref=e26]:
+            - listitem [ref=e27]:
+              - link "GitHub" [ref=e28] [cursor=pointer]:
+                - /url: https://github.com/bhatt-neel-dev/slomo
+            - listitem [ref=e29]:
+              - link "Get started" [ref=e30] [cursor=pointer]:
+                - /url: /quickstart
+        - button "Toggle dark mode" [ref=e37] [cursor=pointer]
+    - generic [ref=e46]:
+      - link "Documentation" [ref=e47] [cursor=pointer]:
+        - /url: /
+      - link "Reference" [ref=e49] [cursor=pointer]:
+        - /url: /reference/python-api
+  - generic [ref=e51]:
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - heading "Getting started" [level=5] [ref=e59]
+        - list [ref=e60]:
+          - listitem [ref=e61]:
+            - link "What is slomo?" [ref=e62] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=e67]:
+            - link "Quickstart" [ref=e68] [cursor=pointer]:
+              - /url: /quickstart
+          - listitem [ref=e73]:
+            - link "Installation" [ref=e74] [cursor=pointer]:
+              - /url: /installation
+      - generic [ref=e79]:
+        - heading "Core concepts" [level=5] [ref=e81]
+        - list [ref=e82]:
+          - listitem [ref=e83]:
+            - link "How it works" [ref=e84] [cursor=pointer]:
+              - /url: /concepts/how-it-works
+          - listitem [ref=e89]:
+            - link "Sessions and events" [ref=e90] [cursor=pointer]:
+              - /url: /concepts/sessions-and-events
+          - listitem [ref=e95]:
+            - link "How issues work" [ref=e96] [cursor=pointer]:
+              - /url: /concepts/issues
+      - generic [ref=e101]:
+        - heading "Recording" [level=5] [ref=e103]
+        - list [ref=e104]:
+          - listitem [ref=e105]:
+            - link "Auto-tracing" [ref=e106] [cursor=pointer]:
+              - /url: /recording/auto-tracing
+          - listitem [ref=e111]:
+            - link "Manual instrumentation" [ref=e112] [cursor=pointer]:
+              - /url: /recording/manual-instrumentation
+          - listitem [ref=e117]:
+            - link "Web frameworks" [ref=e118] [cursor=pointer]:
+              - /url: /recording/web-frameworks
+          - listitem [ref=e123]:
+            - link "Workers and async" [ref=e124] [cursor=pointer]:
+              - /url: /recording/workers-and-async
+          - listitem [ref=e129]:
+            - link "Redaction and privacy" [ref=e130] [cursor=pointer]:
+              - /url: /recording/redaction
+      - generic [ref=e135]:
+        - heading "Investigating" [level=5] [ref=e137]
+        - list [ref=e138]:
+          - listitem [ref=e139]:
+            - link "The investigation workflow" [ref=e140] [cursor=pointer]:
+              - /url: /investigating/issues-workflow
+          - listitem [ref=e145]:
+            - link "Replay" [ref=e146] [cursor=pointer]:
+              - /url: /investigating/replay
+          - listitem [ref=e151]:
+            - link "Search and timeline" [ref=e152] [cursor=pointer]:
+              - /url: /investigating/search-and-timeline
+          - listitem [ref=e157]:
+            - link "Exporting" [ref=e158] [cursor=pointer]:
+              - /url: /investigating/exporting
+      - generic [ref=e163]:
+        - heading "Configuration" [level=5] [ref=e165]
+        - list [ref=e166]:
+          - listitem [ref=e167]:
+            - link "config.toml" [ref=e168] [cursor=pointer]:
+              - /url: /configuration/config-toml
+          - listitem [ref=e173]:
+            - link "Environment variables" [ref=e174] [cursor=pointer]:
+              - /url: /configuration/environment-variables
+          - listitem [ref=e179]:
+            - link "Storage layout" [ref=e180] [cursor=pointer]:
+              - /url: /configuration/storage-layout
+    - generic [ref=e187]:
+      - banner [ref=e188]:
+        - generic [ref=e189]:
+          - generic [ref=e190]: Getting started
+          - heading "Quickstart" [level=1] [ref=e192]
+        - paragraph [ref=e194]: Record, diagnose, and replay your first crash in 60 seconds.
+      - generic [ref=e195]:
+        - list [ref=e196]:
+          - listitem [ref=e197]:
+            - generic [ref=e200]:
+              - generic [ref=e201]: "1"
+              - link "Navigate to header" [ref=e203] [cursor=pointer]:
+                - /url: "#"
+            - generic [ref=e207]:
+              - paragraph [ref=e208]: Install slomo
+              - generic [ref=e209]:
+                - generic [ref=e210]:
+                  - generic [ref=e212]:
+                    - button "Copy the contents from the code block" [ref=e213] [cursor=pointer]
+                    - generic [ref=e217]: Copy
+                  - code [ref=e221]:
+                    - generic [ref=e222]: pip install slomo
+                - generic [ref=e223]:
+                  - text: Requires Python 3.12 or later. See
+                  - link "Installation" [ref=e224] [cursor=pointer]:
+                    - /url: /installation
+                  - text: for details.
+          - listitem [ref=e225]:
+            - generic [ref=e228]:
+              - generic [ref=e229]: "2"
+              - link "Navigate to header" [ref=e231] [cursor=pointer]:
+                - /url: "#"
+            - generic [ref=e235]:
+              - paragraph [ref=e236]: Enable recording
+              - generic [ref=e237]:
+                - generic [ref=e238]: "Add two lines to your application’s entry point:"
+                - generic [ref=e239]:
+                  - generic [ref=e241]:
+                    - button "Copy the contents from the code block" [ref=e242] [cursor=pointer]
+                    - generic [ref=e246]: Copy
+                  - code [ref=e250]:
+                    - generic [ref=e251]: import slomo
+                    - generic [ref=e252]: slomo.enable()
+                - generic [ref=e253]:
+                  - text: From this moment, every function call in your project code, every SQL query, HTTP call, warning-level log, and unhandled exception is recorded to
+                  - code [ref=e254]: .slomo/
+                  - text: — automatically.
+          - listitem [ref=e255]:
+            - generic [ref=e258]:
+              - generic [ref=e259]: "3"
+              - link "Navigate to header" [ref=e261] [cursor=pointer]:
+                - /url: "#"
+            - generic [ref=e265]:
+              - paragraph [ref=e266]: Run an app with a bug
+              - generic [ref=e267]:
+                - generic [ref=e268]:
+                  - text: Save this as
+                  - code [ref=e269]: app.py
+                  - text: ". It has a classic bug: a lookup that can return"
+                  - code [ref=e270]: None
+                  - text: .
+                - generic [ref=e271]:
+                  - generic [ref=e272]:
+                    - generic "app.py" [ref=e274]
+                    - generic [ref=e276]:
+                      - button "Copy the contents from the code block" [ref=e277] [cursor=pointer]
+                      - generic [ref=e281]: Copy
+                  - code [ref=e285]:
+                    - generic [ref=e286]: import sqlite3
+                    - generic [ref=e287]: import slomo
+                    - generic [ref=e288]: from slomo import track
+                    - generic [ref=e289]: slomo.enable()
+                    - generic [ref=e290]: "@track"
+                    - generic [ref=e291]: "def load_inventory(db, sku):"
+                    - generic [ref=e292]: return db.execute(
+                    - generic [ref=e293]: "\"SELECT sku, qty FROM inventory WHERE sku = ?\", (sku,)"
+                    - generic [ref=e294]: ).fetchone()
+                    - generic [ref=e295]: "@track"
+                    - generic [ref=e296]: "def checkout(db, sku):"
+                    - generic [ref=e297]: inventory = load_inventory(db, sku)
+                    - generic [ref=e298]: "return {\"sku\": inventory[0], \"qty\": inventory[1]} # BUG: inventory can be None"
+                    - generic [ref=e299]: db = sqlite3.connect(":memory:")
+                    - generic [ref=e300]: db.execute("CREATE TABLE inventory (sku TEXT PRIMARY KEY, qty INTEGER)")
+                    - generic [ref=e301]: db.execute("INSERT INTO inventory VALUES ('widget', 5)")
+                    - generic [ref=e302]: "checkout(db, \"widget\") # works"
+                    - generic [ref=e303]: "checkout(db, \"gadget\") # crashes"
+                - generic [ref=e304]: "Run it a few times:"
+                - generic [ref=e305]:
+                  - generic [ref=e307]:
+                    - button "Copy the contents from the code block" [ref=e308] [cursor=pointer]
+                    - generic [ref=e312]: Copy
+                  - code [ref=e316]:
+                    - generic [ref=e317]: python app.py
+                    - generic [ref=e318]: python app.py
+                    - generic [ref=e319]: python app.py
+          - listitem [ref=e320]:
+            - generic [ref=e323]:
+              - generic [ref=e324]: "4"
+              - link "Navigate to header" [ref=e326] [cursor=pointer]:
+                - /url: "#"
+            - generic [ref=e330]:
+              - paragraph [ref=e331]: See the crash, grouped into one issue
+              - generic [ref=e332]:
+                - generic [ref=e333]:
+                  - generic [ref=e335]:
+                    - button "Copy the contents from the code block" [ref=e336] [cursor=pointer]
+                    - generic [ref=e340]: Copy
+                  - code [ref=e344]:
+                    - generic [ref=e345]: $ slomo issues
+                    - generic [ref=e346]: ┃ issue ┃ title ┃ category ┃ count ┃
+                    - generic [ref=e347]: "│ SM-8b6f710a │ TypeError: 'NoneType' object is not subsc… │ Null Reference │ 3 │"
+                - generic [ref=e348]:
+                  - text: Three runs, three crashes —
+                  - strong [ref=e349]: one issue
+                  - text: . slomo fingerprints crashes so identical bugs are deduplicated, not repeated. See
+                  - link "How issues work" [ref=e350] [cursor=pointer]:
+                    - /url: /concepts/issues
+                  - text: .
+          - listitem [ref=e351]:
+            - generic [ref=e354]:
+              - generic [ref=e355]: "5"
+              - link "Navigate to header" [ref=e357] [cursor=pointer]:
+                - /url: "#"
+            - generic [ref=e361]:
+              - paragraph [ref=e362]: Ask the doctor
+              - generic [ref=e363]:
+                - generic [ref=e364]:
+                  - generic [ref=e366]:
+                    - button "Copy the contents from the code block" [ref=e367] [cursor=pointer]
+                    - generic [ref=e371]: Copy
+                  - code [ref=e375]:
+                    - generic [ref=e376]: $ slomo doctor SM-8b6f710a
+                    - generic [ref=e377]: Category Null Reference (95% confidence)
+                    - generic [ref=e378]: Occurrences 3 (3 unhandled) across 3 session(s)
+                    - generic [ref=e379]: Likely root cause TypeError raised in checkout() at app.py:16.
+                    - generic [ref=e380]: Variable 'inventory' was None at the crash site.
+                    - generic [ref=e381]: First bad function checkout()
+                    - generic [ref=e382]: First bad variable inventory
+                    - generic [ref=e383]: Suggested fix Guard against None before the failing access at app.py:16
+                    - generic [ref=e384]: — trace where the value is produced and handle the missing case.
+                    - generic [ref=e385]: "Context just before the crash:"
+                    - generic [ref=e386]: 13:04:52.133 sql.query SELECT sku, qty FROM inventory WHERE sku = ?
+                    - generic [ref=e387]: 13:04:52.133 sql.result 0 rows, 9µs
+                - generic [ref=e388]:
+                  - text: "The doctor already saw what happened: the SQL query returned"
+                  - strong [ref=e389]: 0 rows
+                  - text: ","
+                  - code [ref=e390]: inventory
+                  - text: became
+                  - code [ref=e391]: None
+                  - text: ", and the subscript at line 16 blew up."
+          - listitem [ref=e392]:
+            - generic [ref=e395]:
+              - generic [ref=e396]: "6"
+              - link "Navigate to header" [ref=e398] [cursor=pointer]:
+                - /url: "#"
+            - generic [ref=e402]:
+              - paragraph [ref=e403]: Replay the crash
+              - generic [ref=e404]:
+                - generic [ref=e405]:
+                  - generic [ref=e407]:
+                    - button "Copy the contents from the code block" [ref=e408] [cursor=pointer]
+                    - generic [ref=e412]: Copy
+                  - code [ref=e416]:
+                    - generic [ref=e417]: slomo replay SM-8b6f710a
+                - generic [ref=e418]:
+                  - text: "This opens an interactive step-through of the recorded execution: press n/p to step, t to jump to the next error, i to inspect the full event payload, and v to see captured variables. See"
+                  - link "Replay" [ref=e419] [cursor=pointer]:
+                    - /url: /investigating/replay
+                  - text: for all the commands.
+        - heading "Navigate to header What just happened?" [level=2] [ref=e420]:
+          - link "Navigate to header" [ref=e421] [cursor=pointer]:
+            - /url: "#what-just-happened"
+          - generic [ref=e425] [cursor=pointer]: What just happened?
+        - generic [ref=e426]: "You never added logging, never set a breakpoint, and never reproduced anything. The flight recorder captured:"
+        - list [ref=e427]:
+          - listitem [ref=e428]:
+            - text: The
+            - code [ref=e429]: checkout()
+            - text: and
+            - code [ref=e430]: load_inventory()
+            - text: calls with their
+            - strong [ref=e431]: arguments and results
+          - listitem [ref=e432]:
+            - text: The SQL query and its
+            - strong [ref=e433]: row count and duration
+          - listitem [ref=e434]:
+            - text: The
+            - code [ref=e435]: TypeError
+            - text: with a structured traceback and the
+            - strong [ref=e436]: local variables of the crashing frames
+        - generic [ref=e437]:
+          - img "Tip" [ref=e439]
+          - generic [ref=e442]:
+            - text: The
+            - code [ref=e443]: "@track"
+            - text: decorators above are optional —
+            - link "auto-tracing" [ref=e444] [cursor=pointer]:
+              - /url: /recording/auto-tracing
+            - text: records project-code function calls without any decorators. Use
+            - code [ref=e445]: "@track"
+            - text: for code outside your project root or to take control of argument/result capture.
+        - heading "Navigate to header Next steps" [level=2] [ref=e446]:
+          - link "Navigate to header" [ref=e447] [cursor=pointer]:
+            - /url: "#next-steps"
+          - generic [ref=e451] [cursor=pointer]: Next steps
+        - generic [ref=e452]:
+          - link "Use it with FastAPI or Flask One line, no middleware to write." [ref=e453] [cursor=pointer]:
+            - /url: /recording/web-frameworks
+            - generic [ref=e457]:
+              - heading "Use it with FastAPI or Flask" [level=2] [ref=e458]
+              - generic [ref=e459]: One line, no middleware to write.
+          - link [ref=e461] [cursor=pointer]:
+            - /url: /investigating/issues-workflow
+            - generic [ref=e465]:
+              - heading "Learn the investigation workflow" [level=2] [ref=e466]
+              - generic [ref=e468]:
+                - text: From
+                - code [ref=e469]: slomo issues
+                - text: to a fix.
+      - generic [ref=e470]:
+        - link "What is slomo?" [ref=e471] [cursor=pointer]:
+          - /url: /
+        - link "Installation" [ref=e475] [cursor=pointer]:
+          - /url: /installation
+      - contentinfo [ref=e479]:
+        - link "github" [ref=e481] [cursor=pointer]:
+          - /url: https://github.com/bhatt-neel-dev/slomo
+        - link "Powered by" [ref=e486] [cursor=pointer]:
+          - /url: https://www.mintlify.com?utm_campaign=poweredBy&utm_medium=referral&utm_source=undefined

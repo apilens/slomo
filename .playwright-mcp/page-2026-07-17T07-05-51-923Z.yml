@@ -1,0 +1,225 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e8]:
+      - generic [ref=e11]:
+        - link "slomo home page light logo" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e14]: slomo home page
+          - img "light logo" [ref=e15]
+        - button "Open search" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: Search...
+          - generic [ref=e23]: ⌘K
+        - generic [ref=e24]:
+          - navigation [ref=e25]:
+            - list [ref=e26]:
+              - listitem [ref=e27]:
+                - link "GitHub" [ref=e28] [cursor=pointer]:
+                  - /url: https://github.com/bhatt-neel-dev/slomo
+              - listitem [ref=e29]:
+                - link "Get started" [ref=e30] [cursor=pointer]:
+                  - /url: /quickstart
+          - button "Toggle dark mode" [ref=e37] [cursor=pointer]
+      - generic [ref=e46]:
+        - link "Documentation" [ref=e47] [cursor=pointer]:
+          - /url: /
+        - link "Reference" [ref=e49] [cursor=pointer]:
+          - /url: /reference/python-api
+    - generic [ref=e51]:
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - heading "Getting started" [level=5] [ref=e59]
+          - list [ref=e60]:
+            - listitem [ref=e61]:
+              - link "What is slomo?" [ref=e62] [cursor=pointer]:
+                - /url: /
+            - listitem [ref=e67]:
+              - link "Quickstart" [ref=e68] [cursor=pointer]:
+                - /url: /quickstart
+            - listitem [ref=e73]:
+              - link "Installation" [ref=e74] [cursor=pointer]:
+                - /url: /installation
+        - generic [ref=e79]:
+          - heading "Core concepts" [level=5] [ref=e81]
+          - list [ref=e82]:
+            - listitem [ref=e83]:
+              - link "How it works" [ref=e84] [cursor=pointer]:
+                - /url: /concepts/how-it-works
+            - listitem [ref=e89]:
+              - link "Sessions and events" [ref=e90] [cursor=pointer]:
+                - /url: /concepts/sessions-and-events
+            - listitem [ref=e95]:
+              - link "How issues work" [ref=e96] [cursor=pointer]:
+                - /url: /concepts/issues
+        - generic [ref=e101]:
+          - heading "Recording" [level=5] [ref=e103]
+          - list [ref=e104]:
+            - listitem [ref=e105]:
+              - link "Auto-tracing" [ref=e106] [cursor=pointer]:
+                - /url: /recording/auto-tracing
+            - listitem [ref=e111]:
+              - link "Manual instrumentation" [ref=e112] [cursor=pointer]:
+                - /url: /recording/manual-instrumentation
+            - listitem [ref=e117]:
+              - link "Web frameworks" [ref=e118] [cursor=pointer]:
+                - /url: /recording/web-frameworks
+            - listitem [ref=e123]:
+              - link "Workers and async" [ref=e124] [cursor=pointer]:
+                - /url: /recording/workers-and-async
+            - listitem [ref=e129]:
+              - link "Redaction and privacy" [ref=e130] [cursor=pointer]:
+                - /url: /recording/redaction
+        - generic [ref=e135]:
+          - heading "Investigating" [level=5] [ref=e137]
+          - list [ref=e138]:
+            - listitem [ref=e139]:
+              - link "The investigation workflow" [ref=e140] [cursor=pointer]:
+                - /url: /investigating/issues-workflow
+            - listitem [ref=e145]:
+              - link "Replay" [ref=e146] [cursor=pointer]:
+                - /url: /investigating/replay
+            - listitem [ref=e151]:
+              - link "Search and timeline" [ref=e152] [cursor=pointer]:
+                - /url: /investigating/search-and-timeline
+            - listitem [ref=e157]:
+              - link "Exporting" [ref=e158] [cursor=pointer]:
+                - /url: /investigating/exporting
+        - generic [ref=e163]:
+          - heading "Configuration" [level=5] [ref=e165]
+          - list [ref=e166]:
+            - listitem [ref=e167]:
+              - link "config.toml" [ref=e168] [cursor=pointer]:
+                - /url: /configuration/config-toml
+            - listitem [ref=e173]:
+              - link "Environment variables" [ref=e174] [cursor=pointer]:
+                - /url: /configuration/environment-variables
+            - listitem [ref=e179]:
+              - link "Storage layout" [ref=e180] [cursor=pointer]:
+                - /url: /configuration/storage-layout
+      - generic [ref=e187]:
+        - banner [ref=e188]:
+          - generic [ref=e189]:
+            - generic [ref=e190]: Getting started
+            - heading "What is slomo?" [level=1] [ref=e192]
+          - paragraph [ref=e194]: The black box flight recorder for Python applications — record, replay, and diagnose crashes from your terminal.
+        - generic [ref=e195]:
+          - generic [ref=e196]:
+            - strong [ref=e197]: slomo
+            - text: records everything your Python application does — every function call, SQL query, HTTP request, log record, and crash — into a local flight recorder. When something breaks, you don’t reproduce the bug; you replay it.
+          - generic [ref=e198]:
+            - generic [ref=e200]:
+              - button "Copy the contents from the code block" [ref=e201] [cursor=pointer]
+              - generic [ref=e205]: Copy
+            - code [ref=e209]:
+              - generic [ref=e210]: from slomo import enable
+              - generic [ref=e211]: enable()
+          - generic [ref=e212]:
+            - text: That’s the entire integration. No dashboard, no browser, no Docker, no external database, no account, no telemetry. Everything is recorded locally under
+            - code [ref=e213]: .slomo/
+            - text: and explored entirely from your terminal.
+          - heading "Navigate to header Why a flight recorder?" [level=2] [ref=e214]:
+            - link "Navigate to header" [ref=e215] [cursor=pointer]:
+              - /url: "#why-a-flight-recorder"
+            - generic [ref=e219] [cursor=pointer]: Why a flight recorder?
+          - generic [ref=e220]: "Aircraft don’t rely on pilots reproducing an incident — the black box already captured it. slomo brings the same model to Python debugging:"
+          - generic [ref=e221]:
+            - link [ref=e222] [cursor=pointer]:
+              - /url: /recording/auto-tracing
+              - generic [ref=e226]:
+                - heading "Record" [level=2] [ref=e227]
+                - generic [ref=e229]:
+                  - text: One
+                  - code [ref=e230]: enable()
+                  - text: call auto-traces every function call in your project code, plus SQL, HTTP, logs, and unhandled exceptions — with local variables from the crashing frames.
+            - link [ref=e231] [cursor=pointer]:
+              - /url: /concepts/issues
+              - generic [ref=e235]:
+                - heading "Group" [level=2] [ref=e236]
+                - generic [ref=e238]:
+                  - text: Crashes are fingerprinted and deduplicated into
+                  - strong [ref=e239]: issues
+                  - text: . The same bug tomorrow lands in the same issue instead of burying you in duplicates.
+            - link [ref=e240] [cursor=pointer]:
+              - /url: /investigating/issues-workflow
+              - generic [ref=e244]:
+                - heading "Diagnose" [level=2] [ref=e245]
+                - generic [ref=e247]:
+                  - code [ref=e248]: slomo doctor
+                  - text: "runs a heuristic root-cause analysis: category, first bad function, first bad variable, and a suggested fix."
+            - link [ref=e249] [cursor=pointer]:
+              - /url: /investigating/replay
+              - generic [ref=e253]:
+                - heading "Replay" [level=2] [ref=e254]
+                - generic [ref=e256]:
+                  - code [ref=e257]: slomo replay
+                  - text: steps through the recorded execution event by event — inspect payloads, variables, and the context leading up to the crash.
+          - heading "Navigate to header Design guarantees" [level=2] [ref=e258]:
+            - link "Navigate to header" [ref=e259] [cursor=pointer]:
+              - /url: "#design-guarantees"
+            - generic [ref=e263] [cursor=pointer]: Design guarantees
+          - generic [ref=e264]: "slomo is built to run in the background of a real application without you thinking about it:"
+          - list [ref=e265]:
+            - listitem [ref=e266]:
+              - strong [ref=e267]: Fast
+              - text: —
+              - code [ref=e268]: enable()
+              - text: completes in under 5 ms (enforced by a test). Events go through one lock-free queue put; a background thread batches writes. The recorder’s hot path imports zero CLI dependencies.
+            - listitem [ref=e269]:
+              - strong [ref=e270]: Crash-safe
+              - text: — append-only JSONL with fsync on the crash path and a tolerant reader. A
+              - code [ref=e271]: kill -9
+              - text: loses at most the final partial line.
+            - listitem [ref=e272]:
+              - strong [ref=e273]: Never breaks your app
+              - text: — every hook callback is exception-isolated, storage failures are swallowed, and backpressure drops low-severity events rather than blocking your code.
+            - listitem [ref=e274]:
+              - strong [ref=e275]: Private by default
+              - text: — secrets are
+              - link "redacted at capture time" [ref=e276] [cursor=pointer]:
+                - /url: /recording/redaction
+              - text: ; they never touch disk.
+            - listitem [ref=e277]:
+              - strong [ref=e278]: Local-first
+              - text: — your data stays in
+              - code [ref=e279]: .slomo/
+              - text: in your project. JSONL timelines are the source of truth; the SQLite issue index is a rebuildable cache.
+          - heading "Navigate to header Where to go next" [level=2] [ref=e280]:
+            - link "Navigate to header" [ref=e281] [cursor=pointer]:
+              - /url: "#where-to-go-next"
+            - generic [ref=e285] [cursor=pointer]: Where to go next
+          - generic [ref=e286]:
+            - link "Quickstart Record and diagnose your first crash in 60 seconds." [ref=e287] [cursor=pointer]:
+              - /url: /quickstart
+              - generic [ref=e291]:
+                - heading "Quickstart" [level=2] [ref=e292]
+                - generic [ref=e293]: Record and diagnose your first crash in 60 seconds.
+            - 'link "How it works The architecture: recorder, hooks, storage, and the issue engine." [ref=e295] [cursor=pointer]':
+              - /url: /concepts/how-it-works
+              - generic [ref=e299]:
+                - heading "How it works" [level=2] [ref=e300]
+                - generic [ref=e301]: "The architecture: recorder, hooks, storage, and the issue engine."
+            - link "CLI reference Every command, argument, and flag." [ref=e303] [cursor=pointer]:
+              - /url: /reference/cli/overview
+              - generic [ref=e307]:
+                - heading "CLI reference" [level=2] [ref=e308]
+                - generic [ref=e309]: Every command, argument, and flag.
+            - link "Configuration Tune recording, hooks, redaction, and retention." [ref=e311] [cursor=pointer]:
+              - /url: /configuration/config-toml
+              - generic [ref=e315]:
+                - heading "Configuration" [level=2] [ref=e316]
+                - generic [ref=e317]: Tune recording, hooks, redaction, and retention.
+          - generic [ref=e319]:
+            - img "Note" [ref=e321]
+            - generic [ref=e324]:
+              - text: slomo requires
+              - strong [ref=e325]: Python 3.12+
+              - text: (auto-tracing is built on
+              - code [ref=e326]: sys.monitoring
+              - text: ", PEP 669). It is MIT licensed."
+        - link "Quickstart" [ref=e328] [cursor=pointer]:
+          - /url: /quickstart
+        - contentinfo [ref=e332]:
+          - link "github" [ref=e334] [cursor=pointer]:
+            - /url: https://github.com/bhatt-neel-dev/slomo
+          - link "Powered by" [ref=e339] [cursor=pointer]:
+            - /url: https://www.mintlify.com?utm_campaign=poweredBy&utm_medium=referral&utm_source=undefined
+  - alert [ref=e350]

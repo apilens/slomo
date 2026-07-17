@@ -1,0 +1,79 @@
+---
+title: "Installation"
+description: "Install slomo, verify it, and understand what it depends on."
+icon: "download"
+---
+
+## Requirements
+
+- **Python 3.12 or later.** Auto-tracing is built on `sys.monitoring` (PEP 669), which shipped in 3.12. Python 3.13 is fully supported.
+- Any OS with a terminal. There is no server, daemon, or browser component.
+
+## Install
+
+<CodeGroup>
+
+```bash pip
+pip install slomo
+```
+
+```bash uv
+uv add slomo
+```
+
+```bash poetry
+poetry add slomo
+```
+
+</CodeGroup>
+
+This installs both the Python SDK (`import slomo`) and the `slomo` CLI.
+
+## Verify
+
+```console
+$ slomo --version
+slomo 0.1.0
+
+$ python -c "import slomo; print(slomo.__version__)"
+0.1.0
+```
+
+## Dependencies
+
+slomo keeps its footprint deliberately small:
+
+| Package | Used by | Notes |
+|---|---|---|
+| `typer` | CLI only | Never imported by the recorder |
+| `rich` | CLI only | Never imported by the recorder |
+
+The **recorder hot path is stdlib-only**. A test in the suite asserts that after `enable()`, neither `typer` nor `rich` is present in `sys.modules` — so recording adds no import weight to your application process.
+
+Integrations activate automatically only if you already use the library:
+
+| Library | What gets recorded |
+|---|---|
+| `sqlite3` (stdlib) | Queries and results, out of the box |
+| `sqlalchemy` | Queries via SQLAlchemy's event API (Postgres, MySQL, …) |
+| `requests` | HTTP request/response pairs |
+| `httpx` | HTTP request/response pairs, sync and async |
+| `logging` (stdlib) | Records at WARNING and above |
+
+None of these are installed by slomo — hooks are no-ops for libraries you don't have.
+
+<Note>
+If you import `requests` or `httpx` *after* calling `enable()`, call [`slomo.install_hooks()`](/reference/python-api#install-hooks) to attach the HTTP hooks retroactively.
+</Note>
+
+## Development install
+
+To work on slomo itself:
+
+```bash
+git clone https://github.com/bhatt-neel-dev/slomo
+cd slomo
+pip install -e ".[dev]"
+pytest
+ruff check src tests
+```

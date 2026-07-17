@@ -57,6 +57,7 @@ Tracked functions are never double-recorded by auto-trace.
 ## Where recordings go
 
 Everything lands in `.slomo/` in the working directory you launched the
-process from — one folder per session, JSONL as the source of truth. Add
-`.slomo/` to your `.gitignore` (recordings are local debugging data, not
-something to commit).
+process from — one folder per session, JSONL as the source of truth. The
+directory ships its own `.gitignore`, so recordings never show up in `git
+status` — nothing to configure. Run `slomo init` first if you want to tweak
+the config before recording.

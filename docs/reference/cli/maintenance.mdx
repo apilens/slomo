@@ -1,0 +1,64 @@
+---
+title: "stats & prune"
+description: "Storage totals, index rebuilds, and retention pruning."
+icon: "broom"
+---
+
+## `slomo stats`
+
+Totals: sessions, events, issues by category, storage.
+
+```
+slomo stats [OPTIONS]
+```
+
+| Option | Effect |
+|---|---|
+| `--rebuild-index` | Drop and rebuild the issue index from the JSONL timelines |
+
+```console
+$ slomo stats
+Sessions        42        Storage    18.3 MB
+Events          61,204    Issues     7 open, 3 resolved
+By category     Null Reference 3 · Timeout 2 · Database 1 · Unknown 1
+```
+
+### `--rebuild-index`
+
+The SQLite issue index (including full-text search) is a **cache** derived from the JSONL timelines. Rebuild it whenever it could be stale or damaged:
+
+- after deleting session directories by hand
+- after copying sessions in from another machine
+- if the index file was corrupted or removed
+
+```bash
+slomo stats --rebuild-index
+```
+
+Rebuilding is always safe — the JSONL timelines are the [source of truth](/configuration/storage-layout).
+
+---
+
+## `slomo prune`
+
+Delete the oldest sessions beyond the retention limit.
+
+```
+slomo prune [OPTIONS]
+```
+
+| Option | Default | Effect |
+|---|---|---|
+| `--keep`, `-k` | config `retention_max_sessions` (200) | Number of newest sessions to keep |
+| `--yes`, `-y` | — | Skip the confirmation prompt |
+
+```bash
+slomo prune                # trim to the configured retention
+slomo prune --keep 50 -y   # keep only the newest 50, no prompt
+```
+
+<Warning>
+Pruning deletes session directories — source-of-truth data. Incidents from pruned sessions leave the issue index on the next rebuild.
+</Warning>
+
+For deleting one specific session, use [`slomo session delete`](/reference/cli/sessions#slomo-session-delete).

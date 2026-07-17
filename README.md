@@ -18,6 +18,10 @@ That's it. Zero configuration. No dashboard, no browser, no Docker, no external
 database, no account, no telemetry. Everything is recorded locally under
 `.slomo/` and explored entirely from your terminal.
 
+Prefer to look before you leap? `slomo init` scaffolds `.slomo/` with a
+commented config so you can tune redaction, auto-trace, and retention before
+the first run — and prints the two lines to paste into your app.
+
 ---
 
 ## The 60-second demo
@@ -129,6 +133,7 @@ switched off entirely with `SLOMO_AUTOTRACE=0`. Functions carrying
 
 | Command | What it does |
 |---|---|
+| `slomo init` | optional project setup — scaffold `.slomo/` with a commented config before the first run |
 | `slomo` | interactive shell (history + tab completion) |
 | `slomo sessions` / `slomo session show\|inspect\|delete ID` | list runs; `inspect` draws the span tree |
 | `slomo issues` / `slomo issue show\|occurrences\|timeline\|resolve\|reopen\|explain ID` | crashes grouped by fingerprint |

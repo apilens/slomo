@@ -1,0 +1,48 @@
+---
+title: "Exporting"
+description: "Turn a recording into a shareable file: JSON, Markdown, CSV, or HTML."
+icon: "file-export"
+---
+
+Recordings are local by design — nothing leaves your machine unless you export it. `slomo export` turns a session or an issue into a single shareable file.
+
+```bash
+slomo export markdown -i SM-8b6f710a    # an issue, as Markdown
+slomo export html -s a1b2c3             # a session, as HTML
+slomo export json                       # latest session, as JSON
+```
+
+## Formats
+
+| Format | Best for |
+|---|---|
+| `markdown` | Pasting into GitHub issues, tickets, Slack — the crash story as prose + tables |
+| `html` | A self-contained page a teammate can open in a browser — no install needed |
+| `json` | Machine processing, custom tooling, archiving raw events |
+| `csv` | Spreadsheets, quick aggregation of event data |
+
+## Options
+
+| Flag | Effect |
+|---|---|
+| `--session`, `-s` | Session id to export (default: the latest session) |
+| `--issue`, `-i` | Issue id to export instead of a session |
+| `--out`, `-o` | Output file path (default: written under `.slomo/exports/`) |
+
+```bash
+slomo export markdown -i SM-8b6f710a -o ./bug-report.md
+```
+
+## What an issue export contains
+
+Exporting an **issue** packages the whole diagnosis: the issue's metadata (category, severity, occurrences, first/last seen), a sample traceback, and the timeline context around the latest incident — essentially `issue show` + `doctor` in a portable form.
+
+Exporting a **session** packages the run: metadata (argv, python version, host, exit status) and its event timeline.
+
+## Security note
+
+Exports are generated from the recorded timelines, which were [redacted at capture time](/recording/redaction) — so secrets aren't in the export because they were never on disk to begin with. Still, an export contains real arguments, queries, and URLs from your application. Treat it like a log file: share deliberately.
+
+<Tip>
+For automation, prefer `slomo replay REF --json` (raw events on stdout, `jq`-friendly) when you want a stream, and `slomo export json` when you want a file under `.slomo/exports/`.
+</Tip>

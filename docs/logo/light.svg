@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 32" width="150" height="32">
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#1C1917"/>
+  <circle cx="16" cy="16" r="7.5" fill="none" stroke="#FB923C" stroke-width="2.5"/>
+  <circle cx="16" cy="16" r="3" fill="#FB923C"/>
+  <text x="40" y="23" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" font-weight="700" fill="#1C1917">slomo</text>
+</svg>

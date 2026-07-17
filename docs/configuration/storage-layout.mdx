@@ -1,0 +1,79 @@
+---
+title: "Storage layout"
+description: "What lives in .slomo/ — and what you can safely delete."
+icon: "folder-tree"
+---
+
+All slomo data lives in one directory, `.slomo/`, created next to your code on first `enable()`. Its location defines your **project root** — the boundary for [auto-tracing](/recording/auto-tracing)'s "project code" rule.
+
+```
+.slomo/
+  config.toml                      # your configuration
+  sessions/
+    <timestamp>-<id>/              # one directory per recorded run
+      metadata.json                # argv, cwd, python version, host, pid, exit status
+      timeline.jsonl               # the event stream — SOURCE OF TRUTH
+      snapshots/                   # oversized variable captures, loaded on demand
+      attachments/
+  issues/
+    index.sqlite                   # issue index — DERIVED, REBUILDABLE
+  exports/                         # default output dir for `slomo export`
+  cache/
+```
+
+## The one rule: JSONL is truth, SQLite is cache
+
+`timeline.jsonl` files are append-only JSON Lines — one event per line, written by the recorder, never mutated. Everything else slomo shows you is computed from them.
+
+`issues/index.sqlite` (the issue index, including the full-text search index) is a **cache**. Corrupt it, delete it, copy sessions between machines without it — then:
+
+```bash
+slomo stats --rebuild-index
+```
+
+and it's back, byte-for-byte equivalent in meaning.
+
+## Crash-safety mechanics
+
+- **Append-only writes** — a crash mid-write can only damage the final line.
+- **fsync on the crash path** — the exception that kills your process is flushed hardest.
+- **Tolerant reader** — a truncated final line is skipped, not fatal. A `kill -9` loses at most one partial event.
+
+## Manual housekeeping
+
+Everything is plain files, so ordinary tools work:
+
+| Task | Command |
+|---|---|
+| Disk usage and totals | `slomo stats` |
+| Trim to the newest N sessions | `slomo prune --keep 50` |
+| Delete one session | `slomo session delete a1b2c3` |
+| Nuke everything | `rm -rf .slomo/` (config included — it regenerates with defaults) |
+| Grep raw events | `grep -h sql.query .slomo/sessions/*/timeline.jsonl` |
+
+Retention is also automatic: `[storage] retention_max_sessions` (default 200) bounds stored sessions; see [`slomo prune`](/reference/cli/maintenance).
+
+## Multi-process behavior
+
+One writer process owns a session directory — sessions are never shared, so there is no cross-process locking to break. Forked children create sibling session directories labeled `forked_from`. Timestamped directory names keep `slomo sessions` chronological.
+
+## Version control
+
+Add the directory to `.gitignore`:
+
+```gitignore
+.slomo/
+```
+
+<Tip>
+If you want the *configuration* shared with your team but not the recordings, commit `.slomo/config.toml` explicitly and ignore the rest:
+
+```gitignore
+.slomo/*
+!.slomo/config.toml
+```
+</Tip>
+
+## Portability
+
+A session directory is self-contained — `metadata.json` + `timeline.jsonl` + `snapshots/`. You can tar one up, move it to another machine, drop it under that machine's `.slomo/sessions/`, rebuild the index, and replay it there. (For sharing a *diagnosis* rather than raw data, prefer [`slomo export`](/investigating/exporting).)

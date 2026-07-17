@@ -1,0 +1,49 @@
+---
+title: "doctor"
+description: "Heuristic root-cause diagnosis for an issue."
+icon: "stethoscope"
+---
+
+```
+slomo doctor REF
+```
+
+<ParamField path="REF" type="string" required>
+  Issue id, e.g. `SM-1a2b3c4d`.
+</ParamField>
+
+The doctor walks the recorded timeline backwards from the crash and applies heuristics to produce a structured diagnosis:
+
+```console
+$ slomo doctor SM-8b6f710a
+Category              Null Reference  (95% confidence)
+Occurrences           5  (5 unhandled) across 5 session(s)
+Likely root cause     TypeError raised in checkout() at app.py:14.
+                      Variable 'inventory' was None at the crash site.
+First bad function    checkout()
+First bad variable    inventory
+Suggested fix         Guard against None before the failing access at app.py:14
+                      — trace where the value is produced and handle the missing case.
+Context just before the crash:
+  13:04:52.133 sql.query   SELECT sku, qty FROM inventory WHERE sku = ?
+  13:04:52.133 sql.result  0 rows, 9µs
+```
+
+## Reading the report
+
+| Field | Meaning |
+|---|---|
+| **Category** | Automatic [classification](/concepts/issues#classification) with its confidence score |
+| **Occurrences** | Incident count, unhandled count, affected sessions |
+| **Likely root cause** | Where the exception was raised, and what the crash-site state implies |
+| **First bad function** | The earliest function in the trace where the failing value appeared |
+| **First bad variable** | The variable that was already wrong at the crash site |
+| **Suggested fix** | A heuristic suggestion — a starting point, not gospel |
+| **Context** | The SQL/HTTP/log events immediately before the crash — often the actual answer (above: the query returned 0 rows) |
+
+The diagnosis is built from the same captured data you can inspect yourself — crash-frame locals ([snapshots](/reference/cli/data-views)), spans, and the surrounding events. When the doctor's heuristic isn't enough, [replay](/reference/cli/replay) the same incident and rewind from the crash by hand.
+
+## See also
+
+- `slomo issue explain REF` — one-paragraph version of this report
+- [The investigation workflow](/investigating/issues-workflow) — where `doctor` fits in

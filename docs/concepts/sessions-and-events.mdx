@@ -1,0 +1,88 @@
+---
+title: "Sessions and events"
+description: "The data model: one session per process run, one event per recorded activity."
+icon: "timeline"
+---
+
+## Sessions
+
+A **session** is one run of one process. It starts at `enable()` and finalizes at process exit (or an explicit `disable()`). Each session gets a directory under `.slomo/sessions/` named `<timestamp>-<id>` containing its metadata and timeline.
+
+Session metadata records the execution context:
+
+- `argv`, `cwd`, Python version, hostname, pid
+- exit status (clean exit vs. crash)
+- optional `labels` you pass to `enable(labels={"service": "checkout"})`
+- `forked_from` — set when a forked child starts its own session
+
+List and inspect them with the CLI:
+
+```console
+$ slomo sessions                  # newest last
+$ slomo session show a1b2c3       # metadata + event breakdown (id prefix is enough)
+$ slomo session inspect a1b2c3    # span tree of function calls with durations
+$ slomo session delete a1b2c3
+```
+
+<Tip>
+Everywhere the CLI takes a session id, a **unique prefix** is enough — `slomo session show a1b2` works.
+</Tip>
+
+## Events
+
+Every recorded activity is one **event**: a frozen, typed record appended to the session's `timeline.jsonl`.
+
+```json
+{
+  "id": "evt_…",
+  "session_id": "…",
+  "timestamp": 1752750292133000000,
+  "type": "sql.query",
+  "severity": "info",
+  "trace_id": "…",
+  "span_id": "…",
+  "parent_span_id": "…",
+  "payload": { "sql": "SELECT sku, qty FROM inventory WHERE sku = ?" }
+}
+```
+
+- **`timestamp`** is epoch **nanoseconds**.
+- **`span_id` / `parent_span_id`** link events into a call tree — this is what `slomo session inspect` renders and what lets `slomo doctor` reconstruct the path to a crash.
+- **`payload`** is type-specific and passes through [truncation](/configuration/config-toml#recording) and [redaction](/recording/redaction) before it is written.
+
+### Event types
+
+| Type | Emitted by | Payload highlights |
+|---|---|---|
+| `session.started` / `session.finished` | recorder | metadata, exit status |
+| `function.enter` | auto-trace, `@track` | function, module, file, line, args, kwargs |
+| `function.exit` | auto-trace, `@track` | function, duration_ns, result (or `outcome: "exception"`) |
+| `function.exception` | exception hook | exception type, message, structured traceback frames |
+| `http.request` / `http.response` | HTTP hooks | method, URL, status, duration; pairs correlated |
+| `sql.query` / `sql.result` | SQL hooks | statement, row count, duration |
+| `variable.snapshot` | crash snapshots, `snapshot()` | label, source, captured variables |
+| `log` / `warning` / `error` | logging hook | logger, level, message |
+| `custom` | `event()` | name plus whatever you pass |
+
+### Severity
+
+Each event carries a severity: `debug`, `info`, `warning`, `error`, or `critical`. Severity drives:
+
+- `slomo timeline --errors` (warnings and errors only)
+- backpressure policy — under queue pressure, **low-severity events are dropped first**; errors are the last to go
+
+## Traces and spans
+
+Function events form spans: `function.enter` opens a span, `function.exit` closes it, and nested calls carry `parent_span_id`. Async code propagates span context across `await` boundaries, so a span tree of an `asyncio` app reads the way the code logically executed, not the way the event loop interleaved it.
+
+```console
+$ slomo session inspect a1b2c3
+checkout()                      1.2ms
+├── load_inventory()            0.9ms
+│   └── sql.query → 0 rows     9µs
+└── ✗ TypeError
+```
+
+## Where events go from here
+
+Events are raw material. The [issue engine](/concepts/issues) turns exception events into deduplicated, classified issues; [search and timeline](/investigating/search-and-timeline) let you slice events directly; [replay](/investigating/replay) plays them back in order.

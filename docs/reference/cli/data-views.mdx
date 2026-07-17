@@ -1,0 +1,60 @@
+---
+title: "vars, http & sql"
+description: "Typed views over a session or issue: variable snapshots, HTTP traffic, SQL activity."
+icon: "table"
+---
+
+Three commands share the same shape — a typed slice of one session's (or one issue's) events:
+
+```
+slomo vars [REF]
+slomo http [REF]
+slomo sql  [REF]
+```
+
+<ParamField path="REF" type="string">
+  Session id (prefix ok) or issue id (`SM-xxxx`). Default: the latest session. An issue ref scopes to its latest incident's session.
+</ParamField>
+
+## `slomo vars`
+
+Variable snapshots — both kinds:
+
+- **manual** — your [`snapshot()`](/reference/python-api#snapshot) calls, with their labels
+- **exception-captured** — locals from the top frames of crashing stacks (see [`[hooks.snapshots]`](/configuration/config-toml#hooks-snapshots))
+
+```console
+$ slomo vars SM-8b6f710a
+13:04:52.134  exception  checkout() frame
+  inventory = None
+  sku       = 'gadget'
+13:04:51.020  manual     "before-retry"
+  attempt   = 2
+  user      = <User amit>
+```
+
+## `slomo http`
+
+HTTP requests and responses recorded by the `requests`/`httpx` hooks, with pairs correlated:
+
+```console
+$ slomo http
+13:04:50.101  POST https://api.stripe.com/v1/charges   201  142ms
+13:04:51.310  GET  https://inventory.internal/stock    503   28ms
+```
+
+## `slomo sql`
+
+SQL queries and results from the `sqlite3`/SQLAlchemy hooks:
+
+```console
+$ slomo sql
+13:04:52.133  SELECT sku, qty FROM inventory WHERE sku = ?    0 rows   9µs
+13:04:52.140  INSERT INTO orders VALUES (?, ?, ?)             1 row   41µs
+```
+
+Bound parameters appear only if you enabled `[hooks.sql] capture_params` — off by default, because parameters are where the PII lives.
+
+## When to use these vs. search
+
+These views answer *"show me all the X in this run"* instantly. Use [`slomo search`](/reference/cli/search) when you need to filter by content (`status=500`, `url=stripe`) or look **across** sessions.

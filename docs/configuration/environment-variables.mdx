@@ -1,0 +1,50 @@
+---
+title: "Environment variables"
+description: "SLOMO_* variables override config.toml — per-run switches without editing files."
+icon: "terminal"
+---
+
+Every environment variable **overrides** the corresponding `config.toml` setting for that run. They're the right tool for one-off toggles:
+
+```bash
+SLOMO_ENABLED=0 python app.py            # this run: record nothing
+SLOMO_AUTOTRACE=0 pytest                 # this run: hooks yes, auto-trace no
+```
+
+## Reference
+
+| Variable | Overrides | Default |
+|---|---|---|
+| `SLOMO_ENABLED` | `[recording] enabled` — master switch; `0` makes `enable()` a no-op | `1` |
+| `SLOMO_AUTOTRACE` | `[hooks.autotrace] enabled` | `1` |
+| `SLOMO_HOOK_HTTP` | `[hooks.http] enabled` | `1` |
+| `SLOMO_HOOK_SQL` | `[hooks.sql] enabled` | `1` |
+| `SLOMO_HOOK_LOGGING` | `[hooks.logging] enabled` | `1` |
+| `SLOMO_SNAPSHOTS` | `[hooks.snapshots] enabled` | `1` |
+
+## Boolean parsing
+
+Falsy values (case-insensitive): `0`, `false`, `no`, `off`, and the empty string. Everything else — `1`, `true`, `yes`, `on` — is truthy.
+
+```bash
+SLOMO_HOOK_LOGGING=off python app.py     # same as SLOMO_HOOK_LOGGING=0
+```
+
+An **unset** variable defers to `config.toml`; a **set** variable wins over it.
+
+## Common recipes
+
+```bash
+# Silence slomo completely in a benchmark run
+SLOMO_ENABLED=0 python bench.py
+
+# Keep crash capture but drop the function-call firehose
+SLOMO_AUTOTRACE=0 python app.py
+
+# Debug slomo's own SQL hook interaction by removing it from the picture
+SLOMO_HOOK_SQL=0 python app.py
+```
+
+<Note>
+Settings without an environment variable (capture limits, redaction rules, retention, autotrace `include`/`exclude`, …) are file-only — see [config.toml](/configuration/config-toml).
+</Note>

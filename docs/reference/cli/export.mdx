@@ -1,0 +1,41 @@
+---
+title: "export"
+description: "Export a session or issue to a shareable file."
+icon: "file-export"
+---
+
+```
+slomo export FMT [OPTIONS]
+```
+
+<ParamField path="FMT" type="string" required>
+  Output format: `json`, `markdown`, `csv`, or `html`.
+</ParamField>
+
+| Option | Default | Effect |
+|---|---|---|
+| `--session`, `-s` | latest | Session id to export |
+| `--issue`, `-i` | — | Issue id to export instead of a session |
+| `--out`, `-o` | `.slomo/exports/` | Output file path |
+
+## Examples
+
+```bash
+slomo export markdown -i SM-8b6f710a               # issue → Markdown, into .slomo/exports/
+slomo export html -i SM-8b6f710a -o bug-report.html
+slomo export json -s a1b2c3                        # one session's raw events
+slomo export csv                                   # latest session as CSV
+```
+
+## Format guide
+
+| Format | Contents | Best for |
+|---|---|---|
+| `markdown` | Diagnosis as prose + tables | Tickets, PR descriptions, Slack |
+| `html` | Self-contained page | Sharing with someone who has nothing installed |
+| `json` | Raw structured data | Tooling, archiving |
+| `csv` | Tabular events | Spreadsheets |
+
+Exports are generated from timelines that were [redacted at capture time](/recording/redaction) — but they still contain real arguments, queries, and URLs. Treat them like log files.
+
+See the [Exporting guide](/investigating/exporting) for what issue vs. session exports include.
