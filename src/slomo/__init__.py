@@ -4,7 +4,7 @@
     enable()
 
 Everything is recorded locally under ``.slomo/``; inspect it with the
-``slomo`` (or ``sm``) CLI.
+``slomo`` CLI.
 """
 
 from __future__ import annotations

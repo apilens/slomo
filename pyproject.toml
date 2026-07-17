@@ -41,7 +41,6 @@ dev = [
 
 [project.scripts]
 slomo = "slomo.cli.app:main"
-sm = "slomo.cli.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/slomo"]

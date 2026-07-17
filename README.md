@@ -18,8 +18,6 @@ That's it. Zero configuration. No dashboard, no browser, no Docker, no external
 database, no account, no telemetry. Everything is recorded locally under
 `.slomo/` and explored entirely from your terminal.
 
-> The CLI ships as `slomo` with a short alias `sm` — both work everywhere.
-
 ---
 
 ## The 60-second demo

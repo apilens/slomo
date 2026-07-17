@@ -1,4 +1,4 @@
-"""The slomo CLI (`slomo` / `sm`)."""
+"""The slomo CLI."""
 
 from __future__ import annotations
 
